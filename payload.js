@@ -249,8 +249,20 @@
 
       if (sort === 'newest') nodes.reverse();
 
+      var domTitle = document.querySelector('[data-tid="channelTitle-text"]');
+      var chatTitle = domTitle ? domTitle.innerText.trim() : '';
+      if (!chatTitle) {
+        // Fallback to window title: strip leading (notifications) and trailing Teams suffix
+        // Regex ^\(.*\)\s* is laxist to catch (3), (*3), ( 3), etc.
+        chatTitle = document.title
+          .replace(/^\(.*\)\s*/, '')
+          .replace(/\s*\|\s*Microsoft Teams$/, '')
+          .trim();
+      }
+      if (!chatTitle) chatTitle = 'teams-chat';
+
       var html = buildTranscript(nodes);
-      sendMsg({ type: 'result', html: html, count: nodes.length });
+      sendMsg({ type: 'result', html: html, count: nodes.length, title: chatTitle });
     } catch (e) {
       sendMsg({ type: 'error', error: 'Extraction failed: ' + e.message });
     }

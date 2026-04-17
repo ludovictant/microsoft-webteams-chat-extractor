@@ -7,8 +7,14 @@ document.addEventListener('DOMContentLoaded', function () {
 	var toolbarDiv = document.getElementById('toolbar');
 	var copyBtn = document.getElementById('copyBtn');
 	var mdBtn = document.getElementById('mdBtn');
+	var htmlBtn = document.getElementById('htmlBtn');
 	var toast = document.getElementById('toast');
 	var activeTabId = null;
+	var currentChatTitle = 'teams-chat';
+
+	function sanitizeFilename(name) {
+		return name.replace(/[<>:"\/\\|?*]/g, '_').replace(/\s+/g, ' ').trim();
+	}
 
 	function showToast(text) {
 		toast.textContent = text;
@@ -37,7 +43,18 @@ document.addEventListener('DOMContentLoaded', function () {
 			}
 			var section = msg.querySelector('section');
 			if (section) {
-				lines.push('> ' + section.innerText.trim().replace(/\n/g, '\n> '));
+				var clone = section.cloneNode(true);
+				clone.querySelectorAll('a').forEach(function (a) {
+					var linkText = a.innerText.trim() || a.href;
+					var mdLink = '[' + linkText + '](' + a.href + ')';
+					a.parentNode.replaceChild(document.createTextNode(mdLink), a);
+				});
+				clone.querySelectorAll('img').forEach(function (img) {
+					var alt = img.alt || 'image';
+					var mdImg = '![' + alt + '](' + img.src + ')';
+					img.parentNode.replaceChild(document.createTextNode(mdImg), img);
+				});
+				lines.push('> ' + clone.innerText.trim().replace(/\n/g, '\n> '));
 				lines.push('');
 			}
 		});
@@ -63,7 +80,30 @@ document.addEventListener('DOMContentLoaded', function () {
 		var url = URL.createObjectURL(blob);
 		var a = document.createElement('a');
 		a.href = url;
-		a.download = 'teams-chat-' + new Date().toISOString().slice(0, 10) + '.md';
+		a.download = sanitizeFilename(currentChatTitle) + '-' + new Date().toISOString().slice(0, 10) + '.md';
+		a.click();
+		URL.revokeObjectURL(url);
+		showToast('Downloaded!');
+	});
+
+	// Export transcript as HTML file
+	htmlBtn.addEventListener('click', function () {
+		var transcript = chatDiv.querySelector('#transcript');
+		if (!transcript) return;
+		var content = transcript.innerHTML;
+		var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + currentChatTitle + '</title><style>' +
+			'body { font-family: sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; line-height: 1.6; }' +
+			'.message { margin-bottom: 1.5em; }' +
+			'hr { border: none; border-top: 1px solid #ddd; margin: 1em 0; }' +
+			'section { padding-left: 1em; border-left: 2px solid #ccc; }' +
+			'blockquote { border-left: 3px solid #6264a7; margin: 0.5em 0; padding: 0.25em 0.75em; background: #f5f5f5; border-radius: 4px; }' +
+			'.divider { text-align: center; color: #666; font-size: 0.9em; margin: 2em 0; }' +
+			'</style></head><body><h1>' + currentChatTitle + '</h1>' + content + '</body></html>';
+		var blob = new Blob([html], { type: 'text/html' });
+		var url = URL.createObjectURL(blob);
+		var a = document.createElement('a');
+		a.href = url;
+		a.download = sanitizeFilename(currentChatTitle) + '-' + new Date().toISOString().slice(0, 10) + '.html';
 		a.click();
 		URL.revokeObjectURL(url);
 		showToast('Downloaded!');
@@ -79,9 +119,10 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			toolbarDiv.style.display = 'flex';
 			chatDiv.style.display = 'block';
+			currentChatTitle = message.title || 'teams-chat';
 			chatDiv.innerHTML = '<div id="transcript">' + (message.html || '<p>No messages found.</p>') + '</div>';
 			if (message.count) {
-				titleEl.textContent = 'Chat Transcript (' + message.count + ' messages)';
+				titleEl.textContent = currentChatTitle + ' (' + message.count + ' messages)';
 			}
 		} else if (message.type === 'error') {
 			statusDiv.style.display = 'none';

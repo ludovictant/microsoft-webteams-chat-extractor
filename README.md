@@ -11,8 +11,9 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 - Extract currently loaded messages instantly, or auto-scroll back to load messages from the **last 24 hours, 7 days, 30 days, 3 months**, or **all history**
 - Sort output **oldest-first** or **newest-first**
 - **Copy to clipboard** with one click
-- **Export to Markdown** file
-- Handles @mentions, emoji, quoted replies, and date dividers
+- **Export to Markdown or HTML** file
+- **Dynamic Filenames** using the chat title
+- Handles @mentions, emoji, quoted replies, links, images, and date dividers
 - Dark-themed popup UI
 
 ## Installation
@@ -29,7 +30,7 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 3. Click the purple chat icon in the Chrome toolbar
 4. Choose a time range and sort order
 5. Wait for the extension to scroll back and collect messages (a spinner shows progress)
-6. Use the **Copy** or **Markdown** buttons in the toolbar to export the transcript
+6. Use the **Copy**, **HTML**, or **Markdown** buttons in the toolbar to export the transcript
 
 ## How it works
 
@@ -47,6 +48,11 @@ The extension injects a content script into the active Teams tab that:
 - **scripting** -- inject the extraction script into the Teams page
 
 No data leaves your browser. The extension has no background service worker, makes no network requests, and stores nothing.
+
+## Authors
+
+- Ingo Muschenetz
+- Ludovic Tant
 
 ## License
 
