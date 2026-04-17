@@ -40,7 +40,8 @@ The extension injects a content script into the active Teams tab that:
 2. If a time range is selected, finds the scrollable ancestor and repeatedly scrolls to the top to trigger Teams' infinite scroll, collecting message nodes via a `MutationObserver`
 3. Deduplicates and sorts messages by their internal ID
 4. Extracts author, timestamp, and body content from each message
-5. Sends the resulting HTML back to the popup for display
+5. Locates the chat conversation title in the DOM, falling back to the HTML title if the DOM element is not found, to generate a dynamic filename
+6. Sends the resulting HTML back to the popup for display
 
 ## Permissions
 
