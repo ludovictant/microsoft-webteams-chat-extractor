@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	var toast = document.getElementById('toast');
 	var activeTabId = null;
 	var currentChatTitle = 'teams-chat';
+	var currentOldestTS = null;
+	var currentNewestTS = null;
 
 	// Set version number from manifest
 	var versionNumber = document.getElementById('versionNumber');
@@ -20,6 +22,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function sanitizeFilename(name) {
 		return name.replace(/[<>:"\/\\|?*]/g, '_').replace(/\s+/g, ' ').trim();
+	}
+
+	function formatDateTime(isoString) {
+		if (!isoString) return '';
+		var d = new Date(isoString);
+		var pad = function (n) { return n.toString().padStart(2, '0'); };
+		return d.getFullYear() +
+			pad(d.getMonth() + 1) +
+			pad(d.getDate()) +
+			'.' +
+			pad(d.getHours()) +
+			pad(d.getMinutes()) +
+			pad(d.getSeconds());
+	}
+
+	function getFilenameSuffix() {
+		if (currentOldestTS && currentNewestTS) {
+			return '_' + formatDateTime(currentOldestTS) + '_' + formatDateTime(currentNewestTS);
+		}
+		return '-' + new Date().toISOString().slice(0, 10);
 	}
 
 	function showToast(text) {
@@ -86,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		var url = URL.createObjectURL(blob);
 		var a = document.createElement('a');
 		a.href = url;
-		a.download = sanitizeFilename(currentChatTitle) + '-' + new Date().toISOString().slice(0, 10) + '.md';
+		a.download = sanitizeFilename(currentChatTitle) + getFilenameSuffix() + '.md';
 		a.click();
 		URL.revokeObjectURL(url);
 		showToast('Downloaded!');
@@ -109,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		var url = URL.createObjectURL(blob);
 		var a = document.createElement('a');
 		a.href = url;
-		a.download = sanitizeFilename(currentChatTitle) + '-' + new Date().toISOString().slice(0, 10) + '.html';
+		a.download = sanitizeFilename(currentChatTitle) + getFilenameSuffix() + '.html';
 		a.click();
 		URL.revokeObjectURL(url);
 		showToast('Downloaded!');
@@ -126,6 +148,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			toolbarDiv.style.display = 'flex';
 			chatDiv.style.display = 'block';
 			currentChatTitle = message.title || 'teams-chat';
+			currentOldestTS = message.oldestTS;
+			currentNewestTS = message.newestTS;
 			chatDiv.innerHTML = '<div id="transcript">' + (message.html || '<p>No messages found.</p>') + '</div>';
 			if (message.count) {
 				titleEl.textContent = currentChatTitle + ' (' + message.count + ' messages)';

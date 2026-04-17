@@ -79,7 +79,8 @@
       return new Date(parseInt(idMatch[1], 10));
     }
 
-    return null;
+    // Fallback: Use Unix Epoch if no timestamp can be found
+    return new Date(0);
   }
 
   // Return the earliest timestamp found among collected nodes.
@@ -382,7 +383,17 @@
       if (!chatTitle) chatTitle = 'teams-chat';
 
       var html = await buildTranscript(nodes);
-      sendMsg({ type: 'result', html: html, count: nodes.length, title: chatTitle });
+      var oldestTS = nodes.length > 0 ? getTimestamp(nodes[0]) : null;
+      var newestTS = nodes.length > 0 ? getTimestamp(nodes[nodes.length - 1]) : null;
+
+      sendMsg({ 
+        type: 'result', 
+        html: html, 
+        count: nodes.length, 
+        title: chatTitle,
+        oldestTS: oldestTS ? oldestTS.toISOString() : null,
+        newestTS: newestTS ? newestTS.toISOString() : null
+      });
     } catch (e) {
       sendMsg({ type: 'error', error: 'Extraction failed: ' + e.message });
     }
