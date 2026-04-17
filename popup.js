@@ -12,6 +12,12 @@ document.addEventListener('DOMContentLoaded', function () {
 	var activeTabId = null;
 	var currentChatTitle = 'teams-chat';
 
+	// Set version number from manifest
+	var versionNumber = document.getElementById('versionNumber');
+	if (versionNumber) {
+		versionNumber.textContent = chrome.runtime.getManifest().version;
+	}
+
 	function sanitizeFilename(name) {
 		return name.replace(/[<>:"\/\\|?*]/g, '_').replace(/\s+/g, ' ').trim();
 	}
