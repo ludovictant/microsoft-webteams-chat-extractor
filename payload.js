@@ -79,17 +79,25 @@
       return new Date(parseInt(idMatch[1], 10));
     }
 
-    // Fallback: Use Unix Epoch if no timestamp can be found
-    return new Date(0);
+    // Return null if no timestamp can be found. This is important for the scroll logic
+    // to distinguish between a message with an unknown date and the absolute beginning of time.
+    return null;
   }
 
   // Return the earliest timestamp found among collected nodes.
-  // Updated to use the generic getTimestamp helper for cross-compatibility.
+  // We only look for timestamps that are inside valid message bodies to avoid
+  // being tricked by hidden system messages or "ghost" elements in the DOM.
   function getOldestTimestamp(nodes) {
     var oldest = null;
     for (var i = 0; i < nodes.length; i++) {
-      var dt = getTimestamp(nodes[i]);
-      if (dt && (!oldest || dt < oldest)) oldest = dt;
+      var n = nodes[i];
+      // Only consider nodes that have a message body or content
+      if (!n.querySelector('[id^="message-body-"], [id^="content-"]')) continue;
+      
+      var dt = getTimestamp(n);
+      if (dt) {
+        if (!oldest || dt < oldest) oldest = dt;
+      }
     }
     return oldest;
   }
@@ -218,16 +226,16 @@
       // Body: Regular chats nest the content inside [id^="message-body-"]. Channels often have the [id^="content-"] directly within the message wrapper.
 
       var authorEl = clone.querySelector('[data-tid="message-author-name"], [id^="author-"]');
-      var ts = getTimestamp(clone);
+      var ts = getTimestamp(clone) || new Date(0); // Use Epoch fallback for display/sorting
       var bodyEl = clone.querySelector('[id^="message-body-"] [id^="content-"], [id^="content-"]');
 
-      // If we can't find the core components, skip this node (it might be a divider or system notification)
-      if (!ts || !bodyEl) return;
+      // Only skip if the message has no body/content whatsoever.
+      if (!bodyEl) return;
 
       var author = authorEl ? authorEl.innerText.trim() : 'Unknown';
-      var tsStr = ts.toLocaleString();
-      var date = tsStr.split(',')[0];
-      var newDay = lastDate && ts.toDateString() !== lastDate.toDateString();
+      var tsStr = ts.getTime() === 0 ? 'unknown time' : ts.toLocaleString();
+      var date = ts.getTime() === 0 ? 'unknown date' : tsStr.split(',')[0];
+      var newDay = lastDate && ts.getTime() !== 0 && lastDate.getTime() !== 0 && ts.toDateString() !== lastDate.toDateString();
 
       var messageDiv = document.createElement('div');
       messageDiv.className = 'message';
@@ -289,18 +297,25 @@
       var needsScroll = days >= 0;
       var cutoffDate = days > 0 ? new Date(Date.now() - days * 86400000) : null;
 
-      var collected = [];
+      // Strategy: Use a Map to accumulate ALL unique messages seen during scrolling.
+      // This prevents losing data when Teams' virtualized list removes nodes from the DOM.
+      var allMessagesMap = new Map();
+      
       var collect = function () {
-        // Strategy: In standard chats, each message is a direct child of the list.
-        // In Channels, messages are specific wrappers often nested or in multiple lists.
         var nodes = [];
         if (list.id === 'chat-pane-list') {
           nodes = Array.from(list.children);
         } else {
-          // Robust selector for channel message wrappers
           nodes = Array.from(list.querySelectorAll('[data-tid="channel-pane-message"], [id^="reply-chain-summary-"]'));
         }
-        collected.push.apply(collected, nodes);
+
+        nodes.forEach(function(node) {
+          var id = getMessageId(node);
+          if (id && !allMessagesMap.has(id)) {
+            // Store the node (or a clone) to keep it in memory even if removed from DOM
+            allMessagesMap.set(id, node.cloneNode(true));
+          }
+        });
       };
       collect();
 
@@ -313,44 +328,52 @@
           var noChangeCount = 0;
           var prevOldest = null;
           while (true) {
+            console.log('Chat Extractor: Attempting scroll up... (Collected ' + allMessagesMap.size + ' unique messages)');
             // Scroll up using scrollTop and keyboard fallback
             scrollContainer.scrollTop = 0;
             list.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'Home', code: 'Home', bubbles: true, cancelable: true
             }));
 
-            await sleep(1500);
+            await sleep(2500);
             collect();
 
-            // If we have a date target, check whether we've scrolled past it
+            // Check date cutoff against our persistent collection
             if (cutoffDate) {
-              var oldest = getOldestTimestamp(collected);
-              if (oldest && oldest <= cutoffDate) break;
+              var oldest = getOldestTimestamp(Array.from(allMessagesMap.values()));
+              console.log('Chat Extractor: Checking date cutoff. Oldest found:', oldest ? oldest.toLocaleString() : 'none', 'Target:', cutoffDate.toLocaleString());
+              if (oldest && oldest <= cutoffDate) {
+                console.log('Chat Extractor: Target date reached. Stopping scroll.');
+                break;
+              }
             }
 
-            // Detect when no new messages are loading by tracking the
-            // oldest timestamp. Virtual lists keep constant scrollHeight
-            // so we can't rely on that.
-            var currentOldest = getOldestTimestamp(collected);
+            var currentOldest = getOldestTimestamp(Array.from(allMessagesMap.values()));
             var changed = !prevOldest || !currentOldest
               || currentOldest.getTime() !== prevOldest.getTime();
+            
             if (!changed) {
               noChangeCount++;
-              if (noChangeCount >= 3) break;
+              console.log('Chat Extractor: No new messages loaded. Retry ' + noChangeCount + '/5');
+              if (noChangeCount >= 5) {
+                console.log('Chat Extractor: Maximum retries reached. Assuming top of chat.');
+                break;
+              }
             } else {
+              console.log('Chat Extractor: New messages loaded. Oldest timestamp is now:', currentOldest.toLocaleString());
               noChangeCount = 0;
             }
             prevOldest = currentOldest;
 
-            sendMsg({ type: 'progress', count: countUnique(collected) });
+            sendMsg({ type: 'progress', count: allMessagesMap.size });
           }
 
           obs.disconnect();
         }
       }
 
-      // Deduplicate and sort
-      var nodes = filterAndSort(collected);
+      // Convert our Map back to a sorted array for final processing
+      var nodes = filterAndSort(Array.from(allMessagesMap.values()));
 
       // Trim to the requested date range using our robust getTimestamp helper
       if (cutoffDate) {
