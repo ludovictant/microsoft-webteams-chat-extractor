@@ -23,7 +23,7 @@ function sanitizeFileName(name) {
 }
 
 function formatFileTS(ts) {
-  const d = new Date(ts);
+  const d = new Date(ts || 0);
   const pad = (n) => n.toString().padStart(2, '0');
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
@@ -281,6 +281,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'DOWNLOAD_ZIP':
       console.log('Generating ZIP archive...');
+      
+      // Calculate temporal range
+      let startTS = 0;
+      let endTS = 0;
+      if (extractionData.messages.length > 0) {
+        startTS = extractionData.messages[0].timestamp;
+        endTS = extractionData.messages[extractionData.messages.length - 1].timestamp;
+      }
+      const rangeSuffix = `_${formatFileTS(startTS)}_${formatFileTS(endTS)}`;
+      const finalFilename = `${sanitizeFileName(extractionData.title)}${rangeSuffix}.zip`;
+
       generateZip().then(async blob => {
         const buffer = await blob.arrayBuffer();
         
@@ -298,7 +309,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('ZIP generated. Size:', buffer.byteLength, 'bytes.');
         sendResponse({ 
           base64: base64, 
-          filename: `${sanitizeFileName(extractionData.title)}.zip` 
+          filename: finalFilename 
         });
       }).catch(err => {
         console.error('ZIP generation failed:', err);
