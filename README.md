@@ -51,6 +51,8 @@ The extension injects a content script into the active Teams tab that:
 - **activeTab** -- access the current tab only when you click the extension icon
 - **scripting** -- inject the extraction script into the Teams page
 
+No data leaves your browser. The extension has no background service worker, makes no network requests, and stores nothing.
+
 ## Authors
 
 - Ingo Muschenetz
