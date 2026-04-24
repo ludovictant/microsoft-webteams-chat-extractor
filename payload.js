@@ -167,6 +167,16 @@
     // Clone and clean for HTML content
     var clone = node.cloneNode(true);
     
+    // Remove useless canvas elements and their potentially empty div wrappers
+    clone.querySelectorAll('canvas').forEach(function(canvas) {
+        var parent = canvas.parentNode;
+        if (parent && parent.tagName === 'DIV' && parent.children.length === 1 && parent.innerText.trim() === "") {
+            if (parent.parentNode) parent.parentNode.removeChild(parent);
+        } else if (parent) {
+            parent.removeChild(canvas);
+        }
+    });
+
     // Identify body elements BEFORE stripping IDs/classes
     var bodyInClone = clone.querySelector('[id^="message-body-"] [id^="content-"], [id^="content-"]');
     
