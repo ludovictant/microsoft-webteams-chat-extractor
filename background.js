@@ -195,6 +195,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: 'stopped' });
       break;
 
+    case 'RESET_STATUS':
+      extractionData = {
+        title: '',
+        days: 0,
+        startTime: null,
+        activeTabId: null,
+        messages: [],
+        urlToBlob: new Map(),
+        authorToAvatarUrl: new Map(),
+        seenAssetUrls: new Set(),
+        status: 'idle',
+        count: 0,
+        oldestTS: null,
+        processedAssets: 0,
+        totalAssets: 0
+      };
+      console.log('Background state reset to idle.');
+      sendResponse({ status: 'idle' });
+      break;
+
     case 'CHUNK_READY':
       message.messages.forEach(msg => {
         extractionData.messages.push(msg);
@@ -242,7 +262,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'FINISH_EXTRACTION':
       extractionData.messages.sort((a, b) => a.timestamp - b.timestamp);
-      if (message.sort === 'newest') extractionData.messages.reverse();
       
       if (extractionData.days > 0) {
         const cutoff = Date.now() - extractionData.days * 86400000;

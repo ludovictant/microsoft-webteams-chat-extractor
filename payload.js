@@ -328,15 +328,21 @@
         }
       };
 
+      // Ensure we are at the bottom if we plan to scroll back in time
+      if (days >= 0) {
+        var scrollContainer = findScrollContainer(list);
+        if (scrollContainer) {
+          console.log('[DEBUG] Initial scroll to bottom to capture recent messages...');
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          await sleep(1000);
+        }
+      }
+
       await collectAndSend();
 
       if (days >= 0) {
         var scrollContainer = findScrollContainer(list);
         if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight;
-          await sleep(1000);
-          await collectAndSend();
-
           var obs = new MutationObserver(function () { collectAndSend(); });
           obs.observe(list, { childList: true, subtree: true, characterData: true });
 

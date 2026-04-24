@@ -270,17 +270,6 @@
 			<button data-days="90">Last 3 months</button>
 			<button data-days="0">All messages</button>
 		</div>
-		<div class="section-label">Sort order</div>
-		<div class="sort-group">
-			<label>
-				<input type="radio" name="sort" value="oldest" checked>
-				<span>Oldest first</span>
-			</label>
-			<label>
-				<input type="radio" name="sort" value="newest">
-				<span>Newest first</span>
-			</label>
-		</div>
 	</div>
 
 	<div id="status" style="display:none;">
@@ -297,10 +286,15 @@
 	<div id="finalActions" style="display:none;">
 		<h2 id="finalTitle">Ready!</h2>
 		<p id="finalMsg" style="margin-bottom: 20px; color: #8888a8; font-size: 13px;"></p>
-		<button id="downloadZipBtn">
-			<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-			Download Archive (ZIP)
-		</button>
+		<div style="display: flex; flex-direction: column; gap: 10px;">
+			<button id="downloadZipBtn">
+				<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+				Download Archive (ZIP)
+			</button>
+			<button id="resetBtn" style="background: transparent; color: #8888a8; border: 1px solid #3a3a52; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s;">
+				Start New Extraction
+			</button>
+		</div>
 	</div>
 
 	<div id="toast" class="toast">Downloaded!</div>

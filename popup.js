@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var finalActionsDiv = document.getElementById('finalActions');
 	var finalMsg = document.getElementById('finalMsg');
 	var downloadZipBtn = document.getElementById('downloadZipBtn');
+	var resetBtn = document.getElementById('resetBtn');
 	var toast = document.getElementById('toast');
 	var progressBarContainer = document.getElementById('progressBarContainer');
 	var progressBar = document.getElementById('progressBar');
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	
 	var activeTabId = null;
 	var pollingInterval = null;
+	var autoDownloadTriggered = false;
 
 	// Set version number
 	var versionNumber = document.getElementById('versionNumber');
@@ -33,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'block';
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'none';
+			autoDownloadTriggered = false; // Reset flag for next run
 		} else if (data.status === 'extracting') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
@@ -81,6 +84,13 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'block';
 			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
+			
+			// Auto-download logic
+			if (!autoDownloadTriggered) {
+				autoDownloadTriggered = true;
+				console.log('Popup: Auto-triggering ZIP download...');
+				downloadZip();
+			}
 		} else if (data.status === 'error') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
@@ -105,34 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	pollingInterval = setInterval(pollStatus, 1000);
 	pollStatus();
 
-	// Handle time-range button clicks
-	optionsDiv.addEventListener('click', async function (e) {
-		var btn = e.target.closest('button');
-		if (!btn) return;
-
-		var days = parseInt(btn.dataset.days, 10);
-		var sort = document.querySelector('input[name="sort"]:checked').value;
-		
-		var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-		var tab = tabs[0];
-		if (!tab) return;
-		activeTabId = tab.id;
-
-		try {
-			console.log('Popup injecting payload.js into tab:', tab.id);
-			await chrome.scripting.executeScript({
-				target: { tabId: tab.id },
-				files: ['payload.js']
-			});
-			console.log('Popup sending extract signal to tab:', tab.id, { days, sort });
-			await chrome.tabs.sendMessage(tab.id, { action: 'extract', days: days, sort: sort });
-		} catch (err) {
-			console.error('Extraction error:', err);
-		}
-	});
-
-	// Handle download ZIP
-	downloadZipBtn.addEventListener('click', function() {
+	function downloadZip() {
 		downloadZipBtn.disabled = true;
 		downloadZipBtn.textContent = 'Generating ZIP...';
 		
@@ -164,6 +147,46 @@ document.addEventListener('DOMContentLoaded', function () {
 			downloadZipBtn.disabled = false;
 			downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';
 		});
+	}
+
+	// Handle time-range button clicks
+	optionsDiv.addEventListener('click', async function (e) {
+		var btn = e.target.closest('button');
+		if (!btn) return;
+
+		var days = parseInt(btn.dataset.days, 10);
+		var sort = 'oldest';
+		
+		var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+		var tab = tabs[0];
+		if (!tab) return;
+		activeTabId = tab.id;
+
+		try {
+			autoDownloadTriggered = false; // Reset flag
+			console.log('Popup injecting payload.js into tab:', tab.id);
+			await chrome.scripting.executeScript({
+				target: { tabId: tab.id },
+				files: ['payload.js']
+			});
+			console.log('Popup sending extract signal to tab:', tab.id, { days, sort });
+			await chrome.tabs.sendMessage(tab.id, { action: 'extract', days: days, sort: sort });
+		} catch (err) {
+			console.error('Extraction error:', err);
+		}
+	});
+
+	// Handle download ZIP
+	downloadZipBtn.addEventListener('click', function() {
+		downloadZip();
+	});
+
+	// Handle reset button
+	resetBtn.addEventListener('click', function() {
+		console.log('Popup reset button clicked.');
+		chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+			pollStatus();
+		});
 	});
 
 	// Handle stop button
@@ -172,7 +195,9 @@ document.addEventListener('DOMContentLoaded', function () {
 		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, async function(data) {
 			if (data && data.status === 'error') {
 				console.log('Popup resetting after error.');
-				window.location.reload();
+				chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+					pollStatus();
+				});
 				return;
 			}
 			console.log('Popup sending STOP_EXTRACTION to background.');
