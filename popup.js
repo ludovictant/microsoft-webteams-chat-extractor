@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', function () {
 	var optionsDiv = document.getElementById('options');
 	var statusDiv = document.getElementById('status');
+	var rangeText = document.getElementById('rangeText');
 	var progressText = document.getElementById('progressText');
+	var stopBtn = document.getElementById('stopBtn');
 	var chatDiv = document.getElementById('chat');
 	var titleEl = document.getElementById('title');
 	var toolbarDiv = document.getElementById('toolbar');
@@ -38,10 +40,15 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	function getFilenameSuffix() {
-		if (currentOldestTS && currentNewestTS) {
-			return '_' + formatDateTime(currentOldestTS) + '_' + formatDateTime(currentNewestTS);
-		}
-		return '-' + new Date().toISOString().slice(0, 10);
+		var oldest = currentOldestTS && new Date(currentOldestTS).getTime() !== 0 
+			? formatDateTime(currentOldestTS) 
+			: 'unknown';
+		
+		var newest = currentNewestTS && new Date(currentNewestTS).getTime() !== 0 
+			? formatDateTime(currentNewestTS) 
+			: 'unknown';
+
+		return '_' + oldest + '_' + newest;
 	}
 
 	function showToast(text) {
@@ -120,12 +127,23 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (!transcript) return;
 		var content = transcript.innerHTML;
 		var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + currentChatTitle + '</title><style>' +
-			'body { font-family: sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; line-height: 1.6; }' +
-			'.message { margin-bottom: 1.5em; }' +
-			'hr { border: none; border-top: 1px solid #ddd; margin: 1em 0; }' +
-			'section { padding-left: 1em; border-left: 2px solid #ccc; }' +
-			'blockquote { border-left: 3px solid #6264a7; margin: 0.5em 0; padding: 0.25em 0.75em; background: #f5f5f5; border-radius: 4px; }' +
-			'.divider { text-align: center; color: #666; font-size: 0.9em; margin: 2em 0; }' +
+			'body { font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif; ' +
+			'       background-color: #ffffff; color: #242424; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.4; } ' +
+			'h1 { font-size: 18px; font-weight: 600; color: #242424; border-bottom: 1px solid #e1e1e1; padding-bottom: 10px; margin-bottom: 20px; } ' +
+			'.message-container { display: block; width: 100%; margin-bottom: 12px; } ' +
+			'.message-header { display: flex; align-items: baseline; margin-bottom: 4px; padding-left: 8px; } ' +
+			'.author { font-size: 12px; font-weight: 400; color: #616161; margin-right: 8px; } ' +
+			'.timestamp { font-size: 12px; color: #616161; } ' +
+			'.message-box { background-color: #F5F5F5; padding: 5px 14px; border-radius: 8px; display: inline-block; min-width: 100px; max-width: 90%; box-sizing: border-box; } ' +
+			'.message-body { font-size: 14px; color: #242424; word-wrap: break-word; } ' +
+			'.message-body img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; } ' +
+			'blockquote { border-left: 3px solid #C7C7C7; margin: 8px 0; padding: 8px 12px; background-color: #FAFAFA; border-radius: 4px; font-size: 13px; color: #424242; display: inline-block; min-width: 150px; max-width: 100%; box-sizing: border-box; } ' +
+			'.date-divider { display: flex; align-items: center; text-align: center; margin: 24px 0; color: #616161; font-size: 12px; font-weight: 600; } ' +
+			'.date-divider::before, .date-divider::after { content: ""; flex: 1; border-bottom: 1px solid #e1e1e1; } ' +
+			'.date-divider span { padding: 0 12px; } ' +
+			'a { color: #6264a7; text-decoration: none; } ' +
+			'a:hover { text-decoration: underline; } ' +
+			'#version-tag { font-size: 10px; color: #888; margin-top: 40px; text-align: right; border-top: 1px solid #eee; padding-top: 10px; } ' +
 			'</style></head><body><h1>' + currentChatTitle + '</h1>' + content + '</body></html>';
 		var blob = new Blob([html], { type: 'text/html' });
 		var url = URL.createObjectURL(blob);
@@ -168,17 +186,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
 		var days = parseInt(btn.dataset.days, 10);
 		var sort = document.querySelector('input[name="sort"]:checked').value;
+		var label = btn.textContent;
 
 		optionsDiv.style.display = 'none';
 		statusDiv.style.display = 'block';
 		chatDiv.style.display = 'none';
+		rangeText.textContent = label;
+		stopBtn.textContent = 'Stop Extraction';
+		stopBtn.disabled = false;
 
 		if (days < 0) {
 			progressText.textContent = 'Extracting loaded messages\u2026';
 		} else if (days === 0) {
 			progressText.textContent = 'Scrolling to load all messages\u2026';
 		} else {
-			progressText.textContent = 'Scrolling to load last ' + days + ' days\u2026';
+			progressText.textContent = 'Scrolling back in time\u2026';
 		}
 
 		var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -204,6 +226,19 @@ document.addEventListener('DOMContentLoaded', function () {
 			chatDiv.style.display = 'block';
 			chatDiv.innerHTML = '<p style="color:red;">Could not extract chat. Make sure you are on a Microsoft Teams chat page (teams.microsoft.com).</p>';
 			console.error('Extraction error:', err);
+		}
+	});
+
+	// Handle stop button
+	stopBtn.addEventListener('click', async function() {
+		if (activeTabId) {
+			try {
+				await chrome.tabs.sendMessage(activeTabId, { action: 'stop' });
+				stopBtn.textContent = 'Stopping...';
+				stopBtn.disabled = true;
+			} catch (e) {
+				console.error('Stop error:', e);
+			}
 		}
 	});
 });

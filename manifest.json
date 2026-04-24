@@ -3,7 +3,7 @@
 
 	"name": "Microsoft Teams Chat Extractor",
 	"description": "Pulls out the chat transcript from the Microsoft Teams online interface",
-	"version": "3.5.13",
+	"version": "3.5.44",
 	"author": "Ingo Muschenetz & Ludovic Tant",
 
 	"permissions": [

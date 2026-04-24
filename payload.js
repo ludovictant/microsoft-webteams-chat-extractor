@@ -3,6 +3,8 @@
   if (window._teamsExtractorLoaded) return;
   window._teamsExtractorLoaded = true;
 
+  var stopRequested = false;
+
   // Send a message to the popup, silently ignoring errors if it's closed
   function sendMsg(data) {
     chrome.runtime.sendMessage(data).catch(function () {});
@@ -164,6 +166,38 @@
     });
   }
 
+  // Remove Teams-specific CSS classes and data attributes for clean HTML export.
+  function cleanNode(node) {
+    // Remove useless canvas elements
+    node.querySelectorAll('canvas').forEach(function (can) {
+      can.parentNode.removeChild(can);
+    });
+
+    node.querySelectorAll('*').forEach(function (el) {
+      el.removeAttribute('class');
+      el.removeAttribute('id');
+      el.removeAttribute('tabindex');
+      el.removeAttribute('role');
+      el.removeAttribute('aria-label');
+      el.removeAttribute('aria-labelledby');
+      el.removeAttribute('aria-hidden');
+      el.removeAttribute('data-tid');
+      el.removeAttribute('data-is-focusable');
+
+      // Remove all other data-* attributes
+      for (var j = el.attributes.length - 1; j >= 0; j--) {
+        var attr = el.attributes[j];
+        if (attr.name.startsWith('data-')) {
+          // Debugging: Keep data-orig-src and data-gallery-src for images
+          if (attr.name === 'data-orig-src' || attr.name === 'data-gallery-src') {
+            continue;
+          }
+          el.removeAttribute(attr.name);
+        }
+      }
+    });
+  }
+
   // Fetch an image as a Blob and convert it to a Base64 string.
   // We use this to embed images directly into the HTML transcript so they work offline.
   function fetchAsBase64(url) {
@@ -180,26 +214,49 @@
       .catch(function () { return url; }); // Fallback on fetch error
   }
 
-  // Find all images within a node that are hosted on Teams servers and convert them to Base64.
+  // Find all images within a node and convert them to Base64.
   async function replaceImagesWithBase64(node) {
-    // Strategy: Target any image hosted on Microsoft Teams infrastructure.
-    // This includes fr-prod.asyncgw.teams.microsoft.com, blob: URLs, etc.
-    var images = Array.from(node.querySelectorAll('img[src*="teams.microsoft.com"]'));
+    var images = Array.from(node.querySelectorAll('img'));
     for (var i = 0; i < images.length; i++) {
       var img = images[i];
-      // Skip if it's already a data URI
-      if (img.src.startsWith('data:')) continue;
       
-      try {
-        var base64 = await fetchAsBase64(img.src);
-        // Verify we actually got a Base64 string back
-        if (base64 && base64.startsWith('data:image')) {
-          img.src = base64;
-        } else {
-          console.warn('Chat Extractor: Failed to convert image to Base64:', img.src);
+      // Strategy: Create a prioritized list of potential URLs for this image.
+      // We prioritize data-gallery-src (often higher res) over data-orig-src.
+      var candidates = [];
+      if (img.getAttribute('data-gallery-src')) candidates.push(img.getAttribute('data-gallery-src'));
+      if (img.getAttribute('data-orig-src')) candidates.push(img.getAttribute('data-orig-src'));
+      if (img.src) candidates.push(img.src);
+
+      var success = false;
+      for (var j = 0; j < candidates.length; j++) {
+        var targetUrl = candidates[j];
+
+        // Skip if empty or already Base64
+        if (!targetUrl || targetUrl.startsWith('data:')) continue;
+
+        // Skip if it's the 1x1 placeholder
+        var isPlaceholder = targetUrl.indexOf('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=') !== -1;
+        if (isPlaceholder) continue;
+
+        try {
+          console.log('Chat Extractor: Attempting image fetch (' + (j+1) + '/' + candidates.length + '):', targetUrl.substring(0, 100));
+          var base64 = await fetchAsBase64(targetUrl);
+          
+          if (base64 && base64.startsWith('data:image')) {
+            img.src = base64;
+            img.removeAttribute('data-orig-src');
+            img.removeAttribute('data-gallery-src');
+            console.log('Chat Extractor: Success! Image converted to Base64.');
+            success = true;
+            break; // Exit the candidates loop for this image
+          }
+        } catch (e) {
+          console.warn('Chat Extractor: Candidate failed:', targetUrl.substring(0, 50), e);
         }
-      } catch (e) {
-        console.error('Chat Extractor: Error processing image:', img.src, e);
+      }
+
+      if (!success) {
+        console.warn('Chat Extractor: All image candidates failed for this node.');
       }
     }
   }
@@ -208,7 +265,7 @@
   async function buildTranscript(nodes) {
     var lastAuthor = '';
     var lastDate = null;
-    var output = document.createElement('div');
+    var results = [];
 
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
@@ -229,53 +286,70 @@
       var ts = getTimestamp(clone) || new Date(0); // Use Epoch fallback for display/sorting
       var bodyEl = clone.querySelector('[id^="message-body-"] [id^="content-"], [id^="content-"]');
 
-      // Only skip if the message has no body/content whatsoever.
-      if (!bodyEl) return;
+      // Strategy: Only skip if there is absolutely no content AND no images.
+      // This ensures image-only messages or file attachments are preserved.
+      if (!bodyEl && !clone.querySelector('img')) continue;
 
       var author = authorEl ? authorEl.innerText.trim() : 'Unknown';
-      var tsStr = ts.getTime() === 0 ? 'unknown time' : ts.toLocaleString();
-      var date = ts.getTime() === 0 ? 'unknown date' : tsStr.split(',')[0];
+      // Format: exclude seconds (HH:mm)
+      var tsStr = ts.getTime() === 0 ? 'unknown time' : ts.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+      var date = ts.getTime() === 0 ? 'unknown date' : ts.toLocaleDateString();
       var newDay = lastDate && ts.getTime() !== 0 && lastDate.getTime() !== 0 && ts.toDateString() !== lastDate.toDateString();
 
-      var messageDiv = document.createElement('div');
-      messageDiv.className = 'message';
+      var container = document.createElement('div');
+      container.className = 'message-container';
 
-      if (author !== lastAuthor) {
-        messageDiv.appendChild(document.createElement('hr'));
-        var b = document.createElement('b');
-        b.textContent = author;
-        messageDiv.appendChild(b);
+      if (author !== lastAuthor || newDay) {
+        if (newDay) {
+          var divider = document.createElement('div');
+          divider.className = 'date-divider';
+          divider.innerHTML = '<span>' + date + '</span>';
+          results.push(divider.outerHTML);
+        }
+
+        var header = document.createElement('div');
+        header.className = 'message-header';
+        
+        var authorSpan = document.createElement('span');
+        authorSpan.className = 'author';
+        authorSpan.textContent = author;
+        header.appendChild(authorSpan);
+        
         var timeSpan = document.createElement('span');
-        timeSpan.textContent = ' [' + tsStr + ']:';
-        messageDiv.appendChild(timeSpan);
-        messageDiv.appendChild(document.createElement('br'));
-      } else if (newDay) {
-        var divider = document.createElement('div');
-        divider.className = 'divider';
-        divider.innerHTML = '<hr/>' + date + '<hr/>';
-        messageDiv.appendChild(divider);
+        timeSpan.className = 'timestamp';
+        timeSpan.textContent = tsStr;
+        header.appendChild(timeSpan);
+        
+        container.appendChild(header);
       }
+
+      var messageBox = document.createElement('div');
+      messageBox.className = 'message-box';
 
       lastAuthor = author;
       lastDate = ts;
 
       var section = document.createElement('section');
-      section.innerHTML = bodyEl.innerHTML;
-      messageDiv.appendChild(section);
+      section.className = 'message-body';
+      if (bodyEl) {
+        section.innerHTML = bodyEl.innerHTML;
+      } else {
+        var imgWrapper = clone.querySelector('.fui-Image, [class*="image-"], img');
+        if (imgWrapper) section.appendChild(imgWrapper);
+      }
+      
+      cleanNode(section);
+      messageBox.appendChild(section);
+      container.appendChild(messageBox);
 
-      output.appendChild(messageDiv);
+      results.push(container.outerHTML);
     }
 
-    var versionDiv = document.createElement('div');
-    versionDiv.style.fontSize = '10px';
-    versionDiv.style.color = '#888';
-    versionDiv.style.marginTop = '20px';
-    versionDiv.style.textAlign = 'right';
     var version = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : 'unknown';
-    versionDiv.innerHTML = 'Generated by Microsoft Teams Chat Extractor v' + version;
-    output.appendChild(versionDiv);
-
-    return output.innerHTML;
+    var versionHtml = '<div id="version-tag">Generated by Microsoft Teams Chat Extractor v' + version + '</div>';
+    
+    // Join messages with double newlines for human readability in source code
+    return results.join('\n\n') + '\n\n' + versionHtml;
   }
 
   // ---- Main extraction routine ----
@@ -283,6 +357,7 @@
   // days =  0 : scroll all the way to the beginning
   // days >  0 : scroll back until we pass the cutoff date
   async function scrollAndExtract(days, sort) {
+    stopRequested = false;
     try {
       // Strategy: Detect the active view. Regular chats use #chat-pane-list.
       // Channel conversations use [data-tid="channel-pane-runway"].
@@ -311,9 +386,17 @@
 
         nodes.forEach(function(node) {
           var id = getMessageId(node);
-          if (id && !allMessagesMap.has(id)) {
-            // Store the node (or a clone) to keep it in memory even if removed from DOM
-            allMessagesMap.set(id, node.cloneNode(true));
+          if (id) {
+            var existing = allMessagesMap.get(id);
+            // Strategy: Always keep the "best" version of a message.
+            // If we find a version of the same message that has data-orig-src or real images,
+            // overwrite the stored version which might just be a placeholder.
+            var hasRealImages = !!node.querySelector('img[data-orig-src], img[src^="blob:"]');
+            var existingHasReal = existing && !!existing.querySelector('img[data-orig-src], img[src^="blob:"]');
+            
+            if (!existing || (hasRealImages && !existingHasReal)) {
+              allMessagesMap.set(id, node.cloneNode(true));
+            }
           }
         });
       };
@@ -322,12 +405,23 @@
       if (needsScroll) {
         var scrollContainer = findScrollContainer(list);
         if (scrollContainer) {
+          // Strategy: Initial scroll to bottom to ensure we capture the most recent messages
+          // if the user had manually scrolled up before starting the extraction.
+          console.log('Chat Extractor: Initial scroll to bottom...');
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          await sleep(1000); // Wait for recent messages to load/render
+          collect();
+
           var obs = new MutationObserver(function () { collect(); });
           obs.observe(list, { childList: true, subtree: true, characterData: true });
 
           var noChangeCount = 0;
           var prevOldest = null;
           while (true) {
+            if (stopRequested) {
+              console.log('Chat Extractor: Stop requested by user.');
+              break;
+            }
             console.log('Chat Extractor: Attempting scroll up... (Collected ' + allMessagesMap.size + ' unique messages)');
             // Scroll up using scrollTop and keyboard fallback
             scrollContainer.scrollTop = 0;
@@ -406,6 +500,9 @@
       if (!chatTitle) chatTitle = 'teams-chat';
 
       var html = await buildTranscript(nodes);
+      
+      // Strategy: Extract the absolute first and last message timestamps from the final sorted set
+      // to ensure the filename correctly reflects the exported range.
       var oldestTS = nodes.length > 0 ? getTimestamp(nodes[0]) : null;
       var newestTS = nodes.length > 0 ? getTimestamp(nodes[nodes.length - 1]) : null;
 
@@ -427,6 +524,9 @@
     if (message.action === 'extract') {
       scrollAndExtract(message.days, message.sort);
       sendResponse({ status: 'started' });
+    } else if (message.action === 'stop') {
+      stopRequested = true;
+      sendResponse({ status: 'stopping' });
     }
     return false;
   });
