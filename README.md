@@ -9,13 +9,16 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 ## Features
 
 - **Standard & Channel Support**: Works with both private/group chats AND Teams Channels.
-- **Flexible Time Ranges**: Extract currently loaded messages instantly, or auto-scroll back to load messages from the **last 24 hours, 7 days, 30 days, 3 months**, or **all history**.
-- **Embedded Images**: Converts Teams-hosted images (including lazy-loaded and Giphy images) to **Base64 strings** so they display correctly in the exported HTML file even when offline.
-- **Teams-like Export**: Exported HTML features a modern design mimicking the Microsoft Teams interface, with Segoe UI typography and rounded message blocks.
-- **Interactive Control**: Includes a **Stop Extraction** button to halt long-running scrolls and export what has been collected so far.
-- **Smart Filenames**: Automatically generates filenames using the chat title and the **datetime range** of the collected messages (`Chat_YYYYmmDD.HHMMSS_YYYYmmDD.HHMMSS.html`).
-- **Data Integrity**: Uses accumulative collection to ensure no messages are lost due to Teams' virtualized list removal during scrolling.
-- **Privacy First**: No data leaves your browser. All extraction happens locally.
+- **Robust Time Ranges**: Choose from **7 days, 30 days, 3 months**, or **all history**.
+- **Multi-Format Archive**: Generates a comprehensive **ZIP archive** containing:
+  - **HTML**: A rich, Teams-like view with local image links.
+  - **Markdown**: A clean text version for documentation.
+  - **CSV**: A data-ready format for spreadsheets (Date, Author, Content).
+- **Local Assets**: All images and avatars are downloaded as binary files into an `images/` folder within the ZIP, ensuring perfect offline viewing without Base64 bloat.
+- **Background Pipeline**: Uses a robust Service Worker architecture to handle large chat histories (5,000+ messages) without crashing the tab or losing data.
+- **Real-time Progress**: Visual progress bar and "date depth" indicator show exactly how far back the scanner has reached.
+- **Automated Workflow**: Automatically triggers the download once processing is complete and allows immediate "Reset" to start a new extraction.
+- **Privacy First**: No data leaves your browser. All extraction and file generation happens locally.
 
 ## Installation
 
@@ -29,29 +32,31 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 1. Log into Microsoft Teams on the web at [teams.microsoft.com](https://teams.microsoft.com)
 2. Open the chat or channel conversation you want to extract
 3. Click the purple chat icon in the Chrome toolbar
-4. Choose a time range and sort order
-5. Wait for the extension to scroll back and collect messages (the popup shows progress and the active range)
-6. Use the **Copy**, **HTML**, or **Markdown** buttons in the toolbar to export the transcript
+4. Choose a time range (e.g., "Last 7 days")
+5. Wait for the extension to scroll back and collect messages. The popup will show a progress bar and the date currently being reached.
+6. Once image processing finishes, the ZIP archive will **automatically download** to your computer.
+7. Click **Start New Extraction** to clear the memory and begin another session.
 
 ## How it works
 
-The extension injects a content script into the active Teams tab that:
+The extension uses a high-performance **data pipeline** between the page and a background worker:
 
-1. **Detection**: Dynamically identifies the conversation type (Private Chat or Channel) and locates the appropriate message container (`#chat-pane-list` or `[data-tid="channel-pane-runway"]`).
-2. **Initial Sync**: Scrolls to the bottom of the chat first to ensure it captures the most recent messages.
-3. **Accumulative Collection**: As it scrolls up (using simulated 'Home' key presses and `scrollTop` adjustments), it clones and saves every unique message into a memory map. This prevents data loss as Teams removes off-screen messages from the DOM.
-4. **Data Extraction**:
-   - Uses multi-strategy selectors for authors and timestamps across different Teams DOM versions.
-   - Implements a retry mechanism for images, prioritizing high-resolution sources (`data-gallery-src`, `data-orig-src`) over temporary blobs.
-   - Cleans exported HTML by stripping Teams-specific internal classes and attributes for a lightweight output.
-5. **Finalization**: Sorts messages chronologically and calculates the final timestamp range for the filename.
+1. **Detection**: Dynamically identifies the conversation type and locates the message container.
+2. **Initial Sync**: Automatically scrolls to the absolute bottom of the chat first to ensure the capture starts with the most recent messages.
+3. **Batched Extraction**: As it scrolls up, the content script extracts lightweight JSON data and streams it in batches of 10 to a persistent **Service Worker**. This keeps memory usage low even for massive chats.
+4. **Background Asset Processing**:
+   - The content script fetches images and avatars directly from the authenticated page context to bypass CORS/Auth restrictions.
+   - Assets are sent as binary chunks to the Service Worker.
+   - Uses deterministic, sanitized naming: `avatar_Author.png` and `msg_YYYYmmDD.HHMMSS_ID.png`.
+5. **Finalization**: The Service Worker uses **JSZip** to package the HTML, Markdown, and CSV files along with the `images/` folder into a single archive.
 
 ## Permissions
 
-- **activeTab** -- access the current tab only when you click the extension icon
-- **scripting** -- inject the extraction script into the Teams page
+- **activeTab** -- access the current tab only when you click the extension icon.
+- **scripting** -- inject the extraction script into the Teams page.
+- **downloads** -- trigger the browser's download dialog for the final archive.
 
-No data leaves your browser. The extension has no background service worker, makes no network requests, and stores nothing.
+No data leaves your browser. All extraction happens locally.
 
 ## Authors
 
