@@ -108,21 +108,22 @@
     if (!url || fetchedAssets.has(url) || url.startsWith('data:')) return;
     fetchedAssets.add(url);
 
-    console.log('[DEBUG] Starting download for asset:', url);
+    // Detect if the URL belongs to a Teams/Microsoft internal domain
+    var isInternal = url.indexOf('teams.microsoft.com') !== -1 || url.indexOf('microsoft.com') !== -1;
+    
+    console.log('[DEBUG] Starting ' + (isInternal ? 'authenticated' : 'anonymous') + ' download for asset:', url);
     
     var token = getTeamsToken();
     var headers = {};
-    if (token) {
-      console.log('[DEBUG] Auth token found, attaching to request.');
+    if (isInternal && token) {
+      console.log('[DEBUG] Internal domain detected, attaching auth token.');
       headers['Authorization'] = 'Bearer ' + token;
-    } else {
-      console.warn('[DEBUG] No auth token found in storage.');
     }
 
     try {
       const response = await fetch(url, {
         headers: headers,
-        credentials: 'include'
+        credentials: isInternal ? 'include' : 'omit'
       });
       
       if (!response.ok) {
