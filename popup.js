@@ -4,51 +4,21 @@ document.addEventListener('DOMContentLoaded', function () {
 	var rangeText = document.getElementById('rangeText');
 	var progressText = document.getElementById('progressText');
 	var stopBtn = document.getElementById('stopBtn');
-	var chatDiv = document.getElementById('chat');
-	var titleEl = document.getElementById('title');
-	var toolbarDiv = document.getElementById('toolbar');
-	var copyBtn = document.getElementById('copyBtn');
-	var mdBtn = document.getElementById('mdBtn');
-	var htmlBtn = document.getElementById('htmlBtn');
+	var finalActionsDiv = document.getElementById('finalActions');
+	var finalMsg = document.getElementById('finalMsg');
+	var downloadZipBtn = document.getElementById('downloadZipBtn');
 	var toast = document.getElementById('toast');
+	var progressBarContainer = document.getElementById('progressBarContainer');
+	var progressBar = document.getElementById('progressBar');
+	var dateDepth = document.getElementById('dateDepth');
+	
 	var activeTabId = null;
-	var currentChatTitle = 'teams-chat';
-	var currentOldestTS = null;
-	var currentNewestTS = null;
+	var pollingInterval = null;
 
-	// Set version number from manifest
+	// Set version number
 	var versionNumber = document.getElementById('versionNumber');
 	if (versionNumber) {
 		versionNumber.textContent = chrome.runtime.getManifest().version;
-	}
-
-	function sanitizeFilename(name) {
-		return name.replace(/[<>:"\/\\|?*]/g, '_').replace(/\s+/g, ' ').trim();
-	}
-
-	function formatDateTime(isoString) {
-		if (!isoString) return '';
-		var d = new Date(isoString);
-		var pad = function (n) { return n.toString().padStart(2, '0'); };
-		return d.getFullYear() +
-			pad(d.getMonth() + 1) +
-			pad(d.getDate()) +
-			'.' +
-			pad(d.getHours()) +
-			pad(d.getMinutes()) +
-			pad(d.getSeconds());
-	}
-
-	function getFilenameSuffix() {
-		var oldest = currentOldestTS && new Date(currentOldestTS).getTime() !== 0 
-			? formatDateTime(currentOldestTS) 
-			: 'unknown';
-		
-		var newest = currentNewestTS && new Date(currentNewestTS).getTime() !== 0 
-			? formatDateTime(currentNewestTS) 
-			: 'unknown';
-
-		return '_' + oldest + '_' + newest;
 	}
 
 	function showToast(text) {
@@ -57,127 +27,83 @@ document.addEventListener('DOMContentLoaded', function () {
 		setTimeout(function () { toast.classList.remove('show'); }, 2000);
 	}
 
-	// Convert the transcript HTML to Markdown
-	function htmlToMarkdown(container) {
-		var lines = [];
-		container.querySelectorAll('.message').forEach(function (msg) {
-			var hr = msg.querySelector('hr');
-			var bold = msg.querySelector('b');
-			var time = msg.querySelector('span');
-			if (hr && bold) {
-				lines.push('---');
-				lines.push('**' + bold.textContent + '** ' + (time ? time.textContent : ''));
-				lines.push('');
+	function updateUI(data) {
+		console.log('Updating UI with state:', data.status, data);
+		if (data.status === 'idle') {
+			optionsDiv.style.display = 'block';
+			statusDiv.style.display = 'none';
+			finalActionsDiv.style.display = 'none';
+		} else if (data.status === 'extracting') {
+			optionsDiv.style.display = 'none';
+			statusDiv.style.display = 'block';
+			finalActionsDiv.style.display = 'none';
+			
+			progressText.textContent = data.count + ' messages collected so far\u2026';
+			if (data.oldestTS) {
+				var oldest = new Date(data.oldestTS);
+				dateDepth.style.display = 'block';
+				dateDepth.textContent = 'Reached: ' + oldest.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+				
+				if (data.days > 0 && data.startTime) {
+					progressBarContainer.style.display = 'block';
+					var totalRange = data.days * 24 * 60 * 60 * 1000;
+					var elapsedRange = data.startTime - data.oldestTS;
+					var percent = Math.min(100, Math.max(0, (elapsedRange / totalRange) * 100));
+					progressBar.style.width = percent + '%';
+					progressBar.classList.remove('indeterminate');
+				} else if (data.days === 0) {
+					progressBarContainer.style.display = 'block';
+					progressBar.classList.add('indeterminate');
+				} else {
+					progressBarContainer.style.display = 'none';
+				}
 			}
-			var divider = msg.querySelector('.divider');
-			if (divider) {
-				lines.push('---');
-				lines.push(divider.textContent.trim());
-				lines.push('---');
-				lines.push('');
+		} else if (data.status === 'processing') {
+			optionsDiv.style.display = 'none';
+			statusDiv.style.display = 'block';
+			finalActionsDiv.style.display = 'none';
+			
+			rangeText.textContent = 'Processing chat data\u2026';
+			progressBar.classList.remove('indeterminate');
+			progressBarContainer.style.display = 'block';
+			dateDepth.style.display = 'none';
+
+			if (data.totalAssets > 0) {
+				var percent = Math.min(100, Math.max(0, (data.processedAssets / data.totalAssets) * 100));
+				progressBar.style.width = percent + '%';
+				progressText.textContent = 'Converting images: ' + data.processedAssets + ' / ' + data.totalAssets;
+			} else {
+				progressText.textContent = 'Finalizing transcript\u2026';
+				progressBar.style.width = '100%';
 			}
-			var section = msg.querySelector('section');
-			if (section) {
-				var clone = section.cloneNode(true);
-				clone.querySelectorAll('a').forEach(function (a) {
-					var linkText = a.innerText.trim() || a.href;
-					var mdLink = '[' + linkText + '](' + a.href + ')';
-					a.parentNode.replaceChild(document.createTextNode(mdLink), a);
-				});
-				clone.querySelectorAll('img').forEach(function (img) {
-					var alt = img.alt || 'image';
-					var mdImg = '![' + alt + '](' + img.src + ')';
-					img.parentNode.replaceChild(document.createTextNode(mdImg), img);
-				});
-				lines.push('> ' + clone.innerText.trim().replace(/\n/g, '\n> '));
-				lines.push('');
-			}
-		});
-		return lines.join('\n');
+		} else if (data.status === 'ready') {
+			optionsDiv.style.display = 'none';
+			statusDiv.style.display = 'none';
+			finalActionsDiv.style.display = 'block';
+			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
+		} else if (data.status === 'error') {
+			optionsDiv.style.display = 'none';
+			statusDiv.style.display = 'block';
+			progressText.innerHTML = '<span style="color:red;">' + data.error + '</span>';
+			stopBtn.textContent = 'Restart';
+		}
 	}
 
-	// Copy transcript text to clipboard
-	copyBtn.addEventListener('click', function () {
-		var transcript = chatDiv.querySelector('#transcript');
-		if (!transcript) return;
-		var text = transcript.innerText;
-		navigator.clipboard.writeText(text).then(function () {
-			showToast('Copied!');
-		});
-	});
-
-	// Export transcript as Markdown file
-	mdBtn.addEventListener('click', function () {
-		var transcript = chatDiv.querySelector('#transcript');
-		if (!transcript) return;
-		var md = htmlToMarkdown(transcript);
-		var blob = new Blob([md], { type: 'text/markdown' });
-		var url = URL.createObjectURL(blob);
-		var a = document.createElement('a');
-		a.href = url;
-		a.download = sanitizeFilename(currentChatTitle) + getFilenameSuffix() + '.md';
-		a.click();
-		URL.revokeObjectURL(url);
-		showToast('Downloaded!');
-	});
-
-	// Export transcript as HTML file
-	htmlBtn.addEventListener('click', function () {
-		var transcript = chatDiv.querySelector('#transcript');
-		if (!transcript) return;
-		var content = transcript.innerHTML;
-		var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + currentChatTitle + '</title><style>' +
-			'body { font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif; ' +
-			'       background-color: #ffffff; color: #242424; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.4; } ' +
-			'h1 { font-size: 18px; font-weight: 600; color: #242424; border-bottom: 1px solid #e1e1e1; padding-bottom: 10px; margin-bottom: 20px; } ' +
-			'.message-container { display: block; width: 100%; margin-bottom: 12px; } ' +
-			'.message-header { display: flex; align-items: baseline; margin-bottom: 4px; padding-left: 8px; } ' +
-			'.author { font-size: 12px; font-weight: 400; color: #616161; margin-right: 8px; } ' +
-			'.timestamp { font-size: 12px; color: #616161; } ' +
-			'.message-box { background-color: #F5F5F5; padding: 5px 14px; border-radius: 8px; display: inline-block; min-width: 100px; max-width: 90%; box-sizing: border-box; } ' +
-			'.message-body { font-size: 14px; color: #242424; word-wrap: break-word; } ' +
-			'.message-body img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; } ' +
-			'blockquote { border-left: 3px solid #C7C7C7; margin: 8px 0; padding: 8px 12px; background-color: #FAFAFA; border-radius: 4px; font-size: 13px; color: #424242; display: inline-block; min-width: 150px; max-width: 100%; box-sizing: border-box; } ' +
-			'.date-divider { display: flex; align-items: center; text-align: center; margin: 24px 0; color: #616161; font-size: 12px; font-weight: 600; } ' +
-			'.date-divider::before, .date-divider::after { content: ""; flex: 1; border-bottom: 1px solid #e1e1e1; } ' +
-			'.date-divider span { padding: 0 12px; } ' +
-			'a { color: #6264a7; text-decoration: none; } ' +
-			'a:hover { text-decoration: underline; } ' +
-			'#version-tag { font-size: 10px; color: #888; margin-top: 40px; text-align: right; border-top: 1px solid #eee; padding-top: 10px; } ' +
-			'</style></head><body><h1>' + currentChatTitle + '</h1>' + content + '</body></html>';
-		var blob = new Blob([html], { type: 'text/html' });
-		var url = URL.createObjectURL(blob);
-		var a = document.createElement('a');
-		a.href = url;
-		a.download = sanitizeFilename(currentChatTitle) + getFilenameSuffix() + '.html';
-		a.click();
-		URL.revokeObjectURL(url);
-		showToast('Downloaded!');
-	});
-
-	// Listen for progress and result messages from the content script
-	chrome.runtime.onMessage.addListener(function (message, sender) {
-		if (!sender.tab || sender.tab.id !== activeTabId) return;
-
-		if (message.type === 'progress') {
-			progressText.textContent = message.count + ' messages collected so far\u2026';
-		} else if (message.type === 'result') {
-			statusDiv.style.display = 'none';
-			toolbarDiv.style.display = 'flex';
-			chatDiv.style.display = 'block';
-			currentChatTitle = message.title || 'teams-chat';
-			currentOldestTS = message.oldestTS;
-			currentNewestTS = message.newestTS;
-			chatDiv.innerHTML = '<div id="transcript">' + (message.html || '<p>No messages found.</p>') + '</div>';
-			if (message.count) {
-				titleEl.textContent = currentChatTitle + ' (' + message.count + ' messages)';
+	function pollStatus() {
+		console.log('Popup polling status...');
+		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, function(response) {
+			if (response) {
+				console.log('Popup received poll response:', response.status, response);
+				updateUI(response);
+			} else {
+				console.warn('Popup received no response from poll.');
 			}
-		} else if (message.type === 'error') {
-			statusDiv.style.display = 'none';
-			chatDiv.style.display = 'block';
-			chatDiv.innerHTML = '<p style="color:red;">' + message.error + '</p>';
-		}
-	});
+		});
+	}
+
+	// Start polling
+	pollingInterval = setInterval(pollStatus, 1000);
+	pollStatus();
 
 	// Handle time-range button clicks
 	optionsDiv.addEventListener('click', async function (e) {
@@ -186,59 +112,73 @@ document.addEventListener('DOMContentLoaded', function () {
 
 		var days = parseInt(btn.dataset.days, 10);
 		var sort = document.querySelector('input[name="sort"]:checked').value;
-		var label = btn.textContent;
-
-		optionsDiv.style.display = 'none';
-		statusDiv.style.display = 'block';
-		chatDiv.style.display = 'none';
-		rangeText.textContent = label;
-		stopBtn.textContent = 'Stop Extraction';
-		stopBtn.disabled = false;
-
-		if (days < 0) {
-			progressText.textContent = 'Extracting loaded messages\u2026';
-		} else if (days === 0) {
-			progressText.textContent = 'Scrolling to load all messages\u2026';
-		} else {
-			progressText.textContent = 'Scrolling back in time\u2026';
-		}
-
+		
 		var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
 		var tab = tabs[0];
-		if (!tab) {
-			statusDiv.style.display = 'none';
-			chatDiv.style.display = 'block';
-			chatDiv.innerHTML = '<p style="color:red;">No active tab found.</p>';
-			return;
-		}
-
+		if (!tab) return;
 		activeTabId = tab.id;
 
 		try {
+			console.log('Popup injecting payload.js into tab:', tab.id);
 			await chrome.scripting.executeScript({
 				target: { tabId: tab.id },
 				files: ['payload.js']
 			});
-
+			console.log('Popup sending extract signal to tab:', tab.id, { days, sort });
 			await chrome.tabs.sendMessage(tab.id, { action: 'extract', days: days, sort: sort });
 		} catch (err) {
-			statusDiv.style.display = 'none';
-			chatDiv.style.display = 'block';
-			chatDiv.innerHTML = '<p style="color:red;">Could not extract chat. Make sure you are on a Microsoft Teams chat page (teams.microsoft.com).</p>';
 			console.error('Extraction error:', err);
 		}
 	});
 
+	// Handle download ZIP
+	downloadZipBtn.addEventListener('click', function() {
+		downloadZipBtn.disabled = true;
+		downloadZipBtn.textContent = 'Generating ZIP...';
+		
+		console.log('Popup requesting ZIP download...');
+		chrome.runtime.sendMessage({ action: 'DOWNLOAD_ZIP' }, function(response) {
+			if (response && response.base64) {
+				console.log('Popup received ZIP data (Base64), starting local download.');
+				// Convert Base64 to Blob
+				var binaryString = atob(response.base64);
+				var bytes = new Uint8Array(binaryString.length);
+				for (var i = 0; i < binaryString.length; i++) {
+					bytes[i] = binaryString.charCodeAt(i);
+				}
+				var blob = new Blob([bytes], { type: 'application/zip' });
+				
+				var url = URL.createObjectURL(blob);
+				var a = document.createElement('a');
+				a.href = url;
+				a.download = response.filename;
+				a.click();
+				URL.revokeObjectURL(url);
+				showToast('Downloaded!');
+			} else if (response && response.error) {
+				console.error('ZIP generation failed on background:', response.error);
+				alert('ZIP generation failed: ' + response.error);
+			} else {
+				console.error('Popup ZIP download failed or returned no data.');
+			}
+			downloadZipBtn.disabled = false;
+			downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';
+		});
+	});
+
 	// Handle stop button
 	stopBtn.addEventListener('click', async function() {
-		if (activeTabId) {
-			try {
-				await chrome.tabs.sendMessage(activeTabId, { action: 'stop' });
-				stopBtn.textContent = 'Stopping...';
-				stopBtn.disabled = true;
-			} catch (e) {
-				console.error('Stop error:', e);
+		console.log('Popup stop button clicked.');
+		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, async function(data) {
+			if (data && data.status === 'error') {
+				console.log('Popup resetting after error.');
+				window.location.reload();
+				return;
 			}
-		}
+			console.log('Popup sending STOP_EXTRACTION to background.');
+			chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
+				console.log('Stop signal confirmed by background.');
+			});
+		});
 	});
 });

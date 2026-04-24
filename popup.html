@@ -4,7 +4,6 @@
 	<title>MS Teams Chat Transcript</title>
 	<script src="popup.js"></script>
 	<style>
-
 		* {
 			box-sizing: border-box;
 			margin: 0;
@@ -82,10 +81,6 @@
 			border-color: #6264a7;
 		}
 
-		#options button:active {
-			background: #3f3f5a;
-		}
-
 		/* ---- Sort toggle ---- */
 		.sort-group {
 			display: flex;
@@ -151,103 +146,82 @@
 			font-size: 13px;
 		}
 
-		/* ---- Toolbar ---- */
-		.toolbar {
-			display: flex;
-			gap: 6px;
-			padding: 10px 16px;
-			background: #2b2b3d;
-			border-bottom: 1px solid #3a3a52;
+		/* ---- Progress Bar ---- */
+		.progress-container {
+			width: 100%;
+			height: 6px;
+			background-color: #3a3a52;
+			border-radius: 3px;
+			margin: 12px 0;
+			overflow: hidden;
+			display: none;
 		}
 
-		.toolbar button {
+		.progress-bar {
+			height: 100%;
+			background-color: #6264a7;
+			width: 0%;
+			transition: width 0.3s ease;
+		}
+
+		.progress-bar.indeterminate {
+			width: 30%;
+			animation: indeterminate 1.5s infinite linear;
+		}
+
+		@keyframes indeterminate {
+			from { transform: translateX(-100%); }
+			to { transform: translateX(350%); }
+		}
+
+		#dateDepth {
+			font-size: 12px;
+			color: #8888a8;
+			margin-bottom: 8px;
+			display: none;
+		}
+
+		/* ---- Final state ---- */
+		#finalActions {
+			padding: 40px 16px;
+			text-align: center;
+		}
+
+		#finalActions h2 {
+			font-size: 18px;
+			color: #fff;
+			margin-bottom: 10px;
+		}
+
+		#downloadZipBtn {
+			background: #6264a7;
+			color: white;
+			border: none;
+			padding: 12px 24px;
+			border-radius: 8px;
+			cursor: pointer;
+			font-size: 14px;
+			font-weight: 600;
 			display: flex;
 			align-items: center;
-			gap: 5px;
-			padding: 6px 12px;
-			border: 1px solid #3a3a52;
-			border-radius: 6px;
-			background: #1e1e2e;
-			color: #e0e0e0;
-			font-size: 12px;
-			font-family: inherit;
-			cursor: pointer;
-			transition: background 0.15s, border-color 0.15s;
+			justify-content: center;
+			gap: 8px;
+			margin: 0 auto;
+			transition: background 0.15s;
 		}
 
-		.toolbar button:hover {
-			background: #35354d;
-			border-color: #6264a7;
+		#downloadZipBtn:hover {
+			background: #7b7db7;
 		}
 
-		.toolbar button:active {
-			background: #3f3f5a;
-		}
-
-		.toolbar button svg {
-			width: 14px;
-			height: 14px;
+		#downloadZipBtn svg {
+			width: 18px;
+			height: 18px;
 			fill: none;
 			stroke: currentColor;
 			stroke-width: 2;
 			stroke-linecap: round;
 			stroke-linejoin: round;
-		}
-
-		.toolbar .toast {
-			font-size: 12px;
-			color: #81c784;
-			align-self: center;
-			margin-left: auto;
-			opacity: 0;
-			transition: opacity 0.3s;
-		}
-
-		.toolbar .toast.show {
-			opacity: 1;
-		}
-
-		/* ---- Chat results ---- */
-		#chat {
-			padding: 0 16px 16px;
-			color: #242424;
-			background: #fff;
-		}
-
-		#transcript {
-			margin-top: 1em;
-			font-family: Arial, sans-serif;
-		}
-
-		#transcript section {
-			padding-left: 1em;
-			border-left: 2px solid #ccc;
-		}
-
-		#chat hr {
-			border: none;
-			border-top: 1px solid #ddd;
-			margin: 1em 0;
-		}
-
-		.divider {
-			text-align: center;
-			padding: 5px 0;
-			color: #616161;
-			font-size: 12px;
-		}
-
-		div[aria-label*="Mention"] {
-			display: inline;
-			font-weight: bold;
-		}
-
-		blockquote {
-			border-left: 3px solid #6264a7;
-			margin: 0.5em 0;
-			padding: 0.25em 0.75em;
-			background: #f5f5f5;
-			border-radius: 4px;
 		}
 
 		.footer {
@@ -259,6 +233,24 @@
 			text-align: right;
 		}
 
+		.toast {
+			position: fixed;
+			bottom: 40px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: #81c784;
+			color: #1b5e20;
+			padding: 4px 12px;
+			border-radius: 4px;
+			font-size: 12px;
+			opacity: 0;
+			transition: opacity 0.3s;
+			pointer-events: none;
+		}
+
+		.toast.show {
+			opacity: 1;
+		}
 	</style>
 </head>
 
@@ -267,6 +259,7 @@
 		<img src="icons/chat-32.png" alt="">
 		<h1 id="title">Chat Transcript</h1>
 	</div>
+
 	<div id="options">
 		<div class="section-label">Time range</div>
 		<div class="btn-group">
@@ -289,31 +282,31 @@
 			</label>
 		</div>
 	</div>
+
 	<div id="status" style="display:none;">
 		<div class="spinner"></div>
 		<p id="rangeText" style="font-weight: 600; color: #fff; margin-bottom: 4px;"></p>
+		<div id="progressBarContainer" class="progress-container">
+			<div id="progressBar" class="progress-bar"></div>
+		</div>
+		<p id="dateDepth"></p>
 		<p id="progressText" style="margin-bottom: 16px;">Loading...</p>
 		<button id="stopBtn" style="background: #d32f2f; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Stop Extraction</button>
 	</div>
-	<div id="toolbar" class="toolbar" style="display:none;">
-		<button id="copyBtn" title="Copy to clipboard">
-			<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-			Copy
+
+	<div id="finalActions" style="display:none;">
+		<h2 id="finalTitle">Ready!</h2>
+		<p id="finalMsg" style="margin-bottom: 20px; color: #8888a8; font-size: 13px;"></p>
+		<button id="downloadZipBtn">
+			<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+			Download Archive (ZIP)
 		</button>
-		<button id="htmlBtn" title="Export as HTML">
-			<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 2 2 2"/><path d="M14 17l2-2-2-2"/></svg>
-			HTML
-		</button>
-		<button id="mdBtn" title="Export as Markdown">
-			<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-			Markdown
-		</button>
-		<span id="toast" class="toast"></span>
 	</div>
-	<div id="chat" style="display:none;"></div>
+
+	<div id="toast" class="toast">Downloaded!</div>
+
 	<div class="footer">
 		v<span id="versionNumber"></span>
 	</div>
 </body>
-
 </html>

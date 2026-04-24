@@ -4,10 +4,28 @@
   window._teamsExtractorLoaded = true;
 
   var stopRequested = false;
+  var heartbeatInterval = null;
 
-  // Send a message to the popup, silently ignoring errors if it's closed
-  function sendMsg(data) {
-    chrome.runtime.sendMessage(data).catch(function () {});
+  // Send a message to the background script
+  function sendToBackground(action, data) {
+    console.log('Content Script sending to background:', action, data);
+    chrome.runtime.sendMessage({ action: action, ...data }).catch(function (err) {
+      console.warn('Content Script failed to send message:', action, err);
+    });
+  }
+
+  function startHeartbeat() {
+    if (heartbeatInterval) return;
+    heartbeatInterval = setInterval(function() {
+      sendToBackground('HEARTBEAT', {});
+    }, 10000);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
   }
 
   function sleep(ms) {
@@ -15,10 +33,7 @@
   }
 
   // Find the scroll container for the chat list.
-  // Teams v2 may use overflow:auto, overflow:scroll, or overflow:hidden
-  // on a virtualised wrapper. We try multiple strategies.
   function findScrollContainer(el) {
-    // Strategy 1: standard scrollable ancestor (auto / scroll)
     var current = el;
     while (current && current !== document.documentElement) {
       var style = getComputedStyle(current);
@@ -28,7 +43,6 @@
       }
       current = current.parentElement;
     }
-    // Strategy 2: any ancestor that is already scrolled (catches hidden containers)
     current = el;
     while (current && current !== document.documentElement) {
       if (current.scrollTop > 0 && current.scrollHeight > current.clientHeight) {
@@ -36,144 +50,199 @@
       }
       current = current.parentElement;
     }
-    // Strategy 3: the element itself if it has overflow content
     if (el.scrollHeight > el.clientHeight) return el;
     return null;
   }
 
-  // Extract a unique identifier for a message node.
-  // Teams uses different ID structures for private chats (message-body-)
-  // and channel conversations (reply-chain-summary- or data-tid attributes).
+  // Standalone helper for message ID
   function getMessageId(node) {
-    // Strategy 1: Standard chat message body ID
     var msgBody = node.querySelector('[id^="message-body-"]');
     if (msgBody) return msgBody.id;
-
-    // Strategy 2: Channel message wrapper ID (contains timestamp)
     if (node.id && (node.id.startsWith('reply-chain-summary-') || node.id.startsWith('post-message-renderer-'))) {
       return node.id;
     }
-
-    // Strategy 3: Channel message data-tid fallback
     var channelMsg = node.closest('[data-tid="channel-pane-message"]');
     if (channelMsg && channelMsg.id) return channelMsg.id;
-
     return null;
   }
 
-  // Extract a Date object from a message node using multiple possible structures.
+  // Standalone helper for timestamp
   function getTimestamp(node) {
-    // Strategy 1: Standard timestamp element with datetime attribute (most reliable)
     var timeEl = node.querySelector('[id^="timestamp-"]');
     if (timeEl && timeEl.getAttribute('datetime')) {
       return new Date(timeEl.getAttribute('datetime'));
     }
-
-    // Strategy 2: Attachment arrival time (often present when timestamp element is virtualized)
     var arrivalEl = node.querySelector('[originalarrivaltime]');
     if (arrivalEl) {
       return new Date(arrivalEl.getAttribute('originalarrivaltime'));
     }
-
-    // Strategy 3: Parse from element IDs (many Teams IDs contain a Unix epoch)
     var idMatch = (node.id || "").match(/(\d{13})/);
     if (idMatch) {
       return new Date(parseInt(idMatch[1], 10));
     }
-
-    // Return null if no timestamp can be found. This is important for the scroll logic
-    // to distinguish between a message with an unknown date and the absolute beginning of time.
     return null;
   }
 
-  // Return the earliest timestamp found among collected nodes.
-  // We only look for timestamps that are inside valid message bodies to avoid
-  // being tricked by hidden system messages or "ghost" elements in the DOM.
-  function getOldestTimestamp(nodes) {
-    var oldest = null;
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      // Only consider nodes that have a message body or content
-      if (!n.querySelector('[id^="message-body-"], [id^="content-"]')) continue;
+  // Helper to find the Teams access token in storage
+  function getTeamsToken() {
+    try {
+      var sources = [sessionStorage, localStorage];
+      for (var s = 0; s < sources.length; s++) {
+        var storage = sources[s];
+        for (var i = 0; i < storage.length; i++) {
+          var key = storage.key(i);
+          if (key && (key.indexOf('ts.access_token') !== -1 || key.indexOf('token') !== -1)) {
+            var item = JSON.parse(storage.getItem(key));
+            if (item && item.credential) return item.credential;
+            if (item && item.accessToken) return item.accessToken;
+          }
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // Fetch an image and send it to the background
+  var fetchedAssets = new Set();
+  async function fetchAndSendAsset(url) {
+    if (!url || fetchedAssets.has(url) || url.startsWith('data:')) return;
+    fetchedAssets.add(url);
+
+    console.log('[DEBUG] Starting download for asset:', url);
+    
+    var token = getTeamsToken();
+    var headers = {};
+    if (token) {
+      console.log('[DEBUG] Auth token found, attaching to request.');
+      headers['Authorization'] = 'Bearer ' + token;
+    } else {
+      console.warn('[DEBUG] No auth token found in storage.');
+    }
+
+    try {
+      const response = await fetch(url, {
+        headers: headers,
+        credentials: 'include'
+      });
       
-      var dt = getTimestamp(n);
-      if (dt) {
-        if (!oldest || dt < oldest) oldest = dt;
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status + ' ' + response.statusText);
       }
+
+      const blob = await response.blob();
+      const size = blob.size;
+      const reader = new FileReader();
+      reader.onloadend = function() {
+        console.log('[DEBUG] Asset downloaded (' + size + ' bytes) and converted to Base64:', url);
+        sendToBackground('ASSET_READY', { 
+          url: url, 
+          base64: reader.result.split(',')[1]
+        });
+      };
+      reader.readAsDataURL(blob);
+    } catch (e) {
+      console.warn('[DEBUG] Content Script failed to fetch asset:', url, e.message);
     }
-    return oldest;
   }
 
-  // Count unique message IDs among collected nodes.
-  // Updated to use the generic getMessageId helper.
-  function countUnique(nodes) {
-    var ids = new Set();
-    for (var i = 0; i < nodes.length; i++) {
-      var id = getMessageId(nodes[i]);
-      if (id) ids.add(id);
-    }
-    return ids.size;
-  }
+  // Serialize a message node to JSON-based MDO format
+  async function serializeMessage(node) {
+    var id = getMessageId(node);
+    if (!id || node.querySelector('[aria-label="Animated GIF"]')) return null;
 
-  // Deduplicate nodes by ID and sort chronologically.
-  // Handles both chat IDs and channel-style identifiers.
-  function filterAndSort(nodes) {
-    var map = new Map();
-    nodes.forEach(function (n) {
-      var id = getMessageId(n);
-      // Skip GIFs and nodes without identifiable IDs
-      if (id && !n.querySelector('[aria-label="Animated GIF"]')) {
-        if (!map.has(id)) map.set(id, n);
-      }
+    var authorEl = node.querySelector('[data-tid="message-author-name"], [id^="author-"]');
+    var author = authorEl ? authorEl.innerText.trim() : 'Unknown';
+    
+    var avatarImg = node.querySelector('.fui-Avatar__image, [class*="Avatar"] img');
+    var avatarUrl = (avatarImg && avatarImg.src && !avatarImg.src.startsWith('data:')) ? avatarImg.src : null;
+    if (avatarUrl) fetchAndSendAsset(avatarUrl);
+
+    var ts = getTimestamp(node);
+    var timestamp = ts ? ts.getTime() : 0;
+    
+    var bodyEl = node.querySelector('[id^="message-body-"] [id^="content-"], [id^="content-"]');
+    if (!bodyEl && !node.querySelector('img')) return null;
+
+    // Clone and clean for HTML content
+    var clone = node.cloneNode(true);
+    
+    // Identify body elements BEFORE stripping IDs/classes
+    var bodyInClone = clone.querySelector('[id^="message-body-"] [id^="content-"], [id^="content-"]');
+    
+    // Remove headers/avatars from the clone if they exist to avoid duplicates in the body
+    clone.querySelectorAll('.fui-Avatar, [class*="Avatar"]').forEach(function(el) {
+        if (el.parentNode) el.parentNode.removeChild(el);
     });
 
-    return Array.from(map.values()).sort(function (a, b) {
-      var tsA = getTimestamp(a) || 0;
-      var tsB = getTimestamp(b) || 0;
-      return tsA - tsB;
-    });
-  }
-
-  // Replace emoji <img> tags with their alt-text
-  function replaceEmojiImages(node) {
-    node.querySelectorAll('img[itemtype*="Emoji"]').forEach(function (img) {
+    // Remove emoji images (replace with alt text)
+    clone.querySelectorAll('img[itemtype*="Emoji"]').forEach(function (img) {
       var span = document.createElement('span');
       span.innerText = img.alt || '';
       img.parentNode.replaceChild(span, img);
     });
-  }
 
-  // Turn block-level @mention divs into inline spans
-  function replaceMentions(node) {
-    node.querySelectorAll('div[aria-label*="Mention"]').forEach(function (div) {
-      var span = document.createElement('span');
-      span.innerHTML = div.innerHTML;
-      span.className = div.className;
-      span.style.fontWeight = 'bold';
-      div.parentNode.insertBefore(span, div);
-      div.parentNode.removeChild(div);
-    });
-  }
-
-  // Convert quoted-reply wrappers into <blockquote>
-  function replaceQuotedReplies(node) {
-    node.querySelectorAll('div[data-track-module-name="messageQuotedReply"]').forEach(function (div) {
+    // Convert quoted-reply wrappers into <blockquote>
+    clone.querySelectorAll('div[data-track-module-name="messageQuotedReply"]').forEach(function (div) {
       var blockquote = document.createElement('blockquote');
       blockquote.innerHTML = div.innerHTML;
-      blockquote.className = div.className;
-      div.parentNode.insertBefore(blockquote, div);
-      div.parentNode.removeChild(div);
-    });
-  }
-
-  // Remove Teams-specific CSS classes and data attributes for clean HTML export.
-  function cleanNode(node) {
-    // Remove useless canvas elements
-    node.querySelectorAll('canvas').forEach(function (can) {
-      can.parentNode.removeChild(can);
+      // Extract author and content from the quote card if possible to make it cleaner
+      var quoteAuthor = div.querySelector('[class*="StyledText"]');
+      var quoteContent = div.querySelector('[data-tid="quoted-reply-preview-content"]');
+      if (quoteAuthor && quoteContent) {
+          blockquote.innerHTML = '<strong>' + quoteAuthor.innerText + '</strong>: ' + quoteContent.innerText;
+      }
+      div.parentNode.replaceChild(blockquote, div);
     });
 
-    node.querySelectorAll('*').forEach(function (el) {
+    // Turn block-level @mention divs into inline spans
+    clone.querySelectorAll('div[aria-label*="Mention"]').forEach(function (div) {
+      var span = document.createElement('span');
+      span.innerText = div.innerText;
+      span.style.fontWeight = 'bold';
+      div.parentNode.replaceChild(span, div);
+    });
+
+    // Extract body images
+    var images = [];
+    var bodyImages = clone.querySelectorAll('img:not(.fui-Avatar__image):not([class*="Avatar"] img):not([itemtype*="Emoji"])');
+    for (var i = 0; i < bodyImages.length; i++) {
+      var img = bodyImages[i];
+      
+      // 1. Correct SRC identification (Prioritize data-gallery-src if current src is a blob)
+      var gallerySrc = img.getAttribute('data-gallery-src');
+      var origSrc = img.getAttribute('data-orig-src');
+      var rawSrc = img.src;
+      var targetUrl = rawSrc;
+
+      if (rawSrc.startsWith('blob:') && gallerySrc) {
+        console.log('[DEBUG] Image ' + i + ': Detected blob src, correcting to data-gallery-src:', gallerySrc.substring(0, 80) + '...');
+        targetUrl = gallerySrc;
+      } else if (gallerySrc) {
+        targetUrl = gallerySrc;
+      } else if (origSrc) {
+        targetUrl = origSrc;
+      }
+
+      // Preserve debug attributes
+      if (rawSrc) img.setAttribute('DEBUG-src', rawSrc);
+      var dsrc = img.getAttribute('data-src');
+      if (dsrc) img.setAttribute('DEBUG-data-src', dsrc);
+      if (gallerySrc) img.setAttribute('DEBUG-data-gallery-src', gallerySrc);
+
+      if (targetUrl && !targetUrl.startsWith('data:')) {
+        var imgId = 'img_' + timestamp + '_' + i;
+        images.push({ url: targetUrl, id: imgId });
+        
+        // 2. Set the placeholder for background replacement
+        console.log('[DEBUG] Image ' + i + ': Assigning placeholder ##' + imgId + '##');
+        img.src = '##' + imgId + '##'; 
+        
+        fetchAndSendAsset(targetUrl);
+      }
+    }
+
+    // Clean node attributes from the CLONE
+    clone.querySelectorAll('*').forEach(function (el) {
       el.removeAttribute('class');
       el.removeAttribute('id');
       el.removeAttribute('tabindex');
@@ -183,200 +252,58 @@
       el.removeAttribute('aria-hidden');
       el.removeAttribute('data-tid');
       el.removeAttribute('data-is-focusable');
-
-      // Remove all other data-* attributes
       for (var j = el.attributes.length - 1; j >= 0; j--) {
         var attr = el.attributes[j];
         if (attr.name.startsWith('data-')) {
-          // Debugging: Keep data-orig-src and data-gallery-src for images
-          if (attr.name === 'data-orig-src' || attr.name === 'data-gallery-src') {
-            continue;
-          }
-          el.removeAttribute(attr.name);
+            if (attr.name.startsWith('DEBUG-')) continue;
+            el.removeAttribute(attr.name);
         }
       }
     });
-  }
 
-  // Fetch an image as a Blob and convert it to a Base64 string.
-  // We use this to embed images directly into the HTML transcript so they work offline.
-  function fetchAsBase64(url) {
-    return fetch(url)
-      .then(function (response) { return response.blob(); })
-      .then(function (blob) {
-        return new Promise(function (resolve) {
-          var reader = new FileReader();
-          reader.onloadend = function () { resolve(reader.result); };
-          reader.onerror = function () { resolve(url); }; // Fallback to original URL on error
-          reader.readAsDataURL(blob);
-        });
-      })
-      .catch(function () { return url; }); // Fallback on fetch error
-  }
-
-  // Find all images within a node and convert them to Base64.
-  async function replaceImagesWithBase64(node) {
-    var images = Array.from(node.querySelectorAll('img'));
-    for (var i = 0; i < images.length; i++) {
-      var img = images[i];
-      
-      // Strategy: Create a prioritized list of potential URLs for this image.
-      // We prioritize data-gallery-src (often higher res) over data-orig-src.
-      var candidates = [];
-      if (img.getAttribute('data-gallery-src')) candidates.push(img.getAttribute('data-gallery-src'));
-      if (img.getAttribute('data-orig-src')) candidates.push(img.getAttribute('data-orig-src'));
-      if (img.src) candidates.push(img.src);
-
-      var success = false;
-      for (var j = 0; j < candidates.length; j++) {
-        var targetUrl = candidates[j];
-
-        // Skip if empty or already Base64
-        if (!targetUrl || targetUrl.startsWith('data:')) continue;
-
-        // Skip if it's the 1x1 placeholder
-        var isPlaceholder = targetUrl.indexOf('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=') !== -1;
-        if (isPlaceholder) continue;
-
-        try {
-          console.log('Chat Extractor: Attempting image fetch (' + (j+1) + '/' + candidates.length + '):', targetUrl.substring(0, 100));
-          var base64 = await fetchAsBase64(targetUrl);
-          
-          if (base64 && base64.startsWith('data:image')) {
-            img.src = base64;
-            img.removeAttribute('data-orig-src');
-            img.removeAttribute('data-gallery-src');
-            console.log('Chat Extractor: Success! Image converted to Base64.');
-            success = true;
-            break; // Exit the candidates loop for this image
-          }
-        } catch (e) {
-          console.warn('Chat Extractor: Candidate failed:', targetUrl.substring(0, 50), e);
-        }
-      }
-
-      if (!success) {
-        console.warn('Chat Extractor: All image candidates failed for this node.');
-      }
-    }
-  }
-
-  // Build the final HTML transcript from an array of sorted message nodes.
-  async function buildTranscript(nodes) {
-    var lastAuthor = '';
-    var lastDate = null;
-    var results = [];
-
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      // Clone so we don't mutate the live Teams DOM
-      var clone = n.cloneNode(true);
-      replaceEmojiImages(clone);
-      replaceMentions(clone);
-      replaceQuotedReplies(clone);
-      await replaceImagesWithBase64(clone);
-
-      // --- Extraction Strategy Explanation ---
-      // Teams Chat vs. Channels:
-      // Author: Regular chats use data-tid="message-author-name". Channels often use an element with id starting with "author-".
-      // Time: Regular chats have a discrete timestamp element. In Channels, we use our getTimestamp helper to check multiple fallback IDs/attributes.
-      // Body: Regular chats nest the content inside [id^="message-body-"]. Channels often have the [id^="content-"] directly within the message wrapper.
-
-      var authorEl = clone.querySelector('[data-tid="message-author-name"], [id^="author-"]');
-      var ts = getTimestamp(clone) || new Date(0); // Use Epoch fallback for display/sorting
-      var bodyEl = clone.querySelector('[id^="message-body-"] [id^="content-"], [id^="content-"]');
-
-      // Strategy: Only skip if there is absolutely no content AND no images.
-      // This ensures image-only messages or file attachments are preserved.
-      if (!bodyEl && !clone.querySelector('img')) continue;
-
-      var author = authorEl ? authorEl.innerText.trim() : 'Unknown';
-      // Format: exclude seconds (HH:mm)
-      var tsStr = ts.getTime() === 0 ? 'unknown time' : ts.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
-      var date = ts.getTime() === 0 ? 'unknown date' : ts.toLocaleDateString();
-      var newDay = lastDate && ts.getTime() !== 0 && lastDate.getTime() !== 0 && ts.toDateString() !== lastDate.toDateString();
-
-      var container = document.createElement('div');
-      container.className = 'message-container';
-
-      if (author !== lastAuthor || newDay) {
-        if (newDay) {
-          var divider = document.createElement('div');
-          divider.className = 'date-divider';
-          divider.innerHTML = '<span>' + date + '</span>';
-          results.push(divider.outerHTML);
-        }
-
-        var header = document.createElement('div');
-        header.className = 'message-header';
-        
-        var authorSpan = document.createElement('span');
-        authorSpan.className = 'author';
-        authorSpan.textContent = author;
-        header.appendChild(authorSpan);
-        
-        var timeSpan = document.createElement('span');
-        timeSpan.className = 'timestamp';
-        timeSpan.textContent = tsStr;
-        header.appendChild(timeSpan);
-        
-        container.appendChild(header);
-      }
-
-      var messageBox = document.createElement('div');
-      messageBox.className = 'message-box';
-
-      lastAuthor = author;
-      lastDate = ts;
-
-      var section = document.createElement('section');
-      section.className = 'message-body';
-      if (bodyEl) {
-        section.innerHTML = bodyEl.innerHTML;
-      } else {
-        var imgWrapper = clone.querySelector('.fui-Image, [class*="image-"], img');
-        if (imgWrapper) section.appendChild(imgWrapper);
-      }
-      
-      cleanNode(section);
-      messageBox.appendChild(section);
-      container.appendChild(messageBox);
-
-      results.push(container.outerHTML);
-    }
-
-    var version = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : 'unknown';
-    var versionHtml = '<div id="version-tag">Generated by Microsoft Teams Chat Extractor v' + version + '</div>';
+    // Extract HTML from the identified body
+    var htmlContent = bodyInClone ? bodyInClone.innerHTML : '';
     
-    // Join messages with double newlines for human readability in source code
-    return results.join('\n\n') + '\n\n' + versionHtml;
+    if (!htmlContent) {
+      var imgWrapper = clone.querySelector('.fui-Image, [class*="image-"], img');
+      if (imgWrapper) htmlContent = imgWrapper.outerHTML;
+    }
+
+    return {
+      id: id,
+      author: author,
+      avatarUrl: avatarUrl,
+      timestamp: timestamp,
+      htmlContent: htmlContent,
+      images: images
+    };
   }
 
   // ---- Main extraction routine ----
-  // days = -1 : extract only currently-loaded messages (no scrolling)
-  // days =  0 : scroll all the way to the beginning
-  // days >  0 : scroll back until we pass the cutoff date
   async function scrollAndExtract(days, sort) {
     stopRequested = false;
+    fetchedAssets.clear();
+    startHeartbeat();
+    
     try {
-      // Strategy: Detect the active view. Regular chats use #chat-pane-list.
-      // Channel conversations use [data-tid="channel-pane-runway"].
       var list = document.getElementById('chat-pane-list') || 
                  document.querySelector('[data-tid="channel-pane-runway"]');
 
       if (!list) {
-        sendMsg({ type: 'error', error: 'No chat or channel pane found. Make sure you have a conversation open in Teams.' });
+        sendToBackground('ERROR', { error: 'No chat or channel pane found.' });
         return;
       }
 
-      var needsScroll = days >= 0;
       var cutoffDate = days > 0 ? new Date(Date.now() - days * 86400000) : null;
+      var processedIds = new Set();
+      var batchBuffer = [];
 
-      // Strategy: Use a Map to accumulate ALL unique messages seen during scrolling.
-      // This prevents losing data when Teams' virtualized list removes nodes from the DOM.
-      var allMessagesMap = new Map();
-      
-      var collect = function () {
+      var domTitle = document.querySelector('[data-tid="channelTitle-text"], [data-tid="active-chat-title"]');
+      var chatTitle = domTitle ? domTitle.innerText.trim() : document.title.replace(/^\(.*\)\s*/, '').replace(/\s*\|\s*Microsoft Teams$/, '').trim() || 'teams-chat';
+
+      sendToBackground('START_EXTRACTION', { title: chatTitle, days: days });
+
+      var collectAndSend = async function () {
         var nodes = [];
         if (list.id === 'chat-pane-list') {
           nodes = Array.from(list.children);
@@ -384,142 +311,98 @@
           nodes = Array.from(list.querySelectorAll('[data-tid="channel-pane-message"], [id^="reply-chain-summary-"]'));
         }
 
-        nodes.forEach(function(node) {
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
           var id = getMessageId(node);
-          if (id) {
-            var existing = allMessagesMap.get(id);
-            // Strategy: Always keep the "best" version of a message.
-            // If we find a version of the same message that has data-orig-src or real images,
-            // overwrite the stored version which might just be a placeholder.
-            var hasRealImages = !!node.querySelector('img[data-orig-src], img[src^="blob:"]');
-            var existingHasReal = existing && !!existing.querySelector('img[data-orig-src], img[src^="blob:"]');
-            
-            if (!existing || (hasRealImages && !existingHasReal)) {
-              allMessagesMap.set(id, node.cloneNode(true));
+          if (id && !processedIds.has(id)) {
+            processedIds.add(id); // Mark as processed BEFORE the await
+            var mdo = await serializeMessage(node);
+            if (mdo) {
+              batchBuffer.push(mdo);
+              if (batchBuffer.length >= 10) {
+                sendToBackground('CHUNK_READY', { messages: batchBuffer });
+                batchBuffer = [];
+              }
             }
           }
-        });
+        }
       };
-      collect();
 
-      if (needsScroll) {
+      await collectAndSend();
+
+      if (days >= 0) {
         var scrollContainer = findScrollContainer(list);
         if (scrollContainer) {
-          // Strategy: Initial scroll to bottom to ensure we capture the most recent messages
-          // if the user had manually scrolled up before starting the extraction.
-          console.log('Chat Extractor: Initial scroll to bottom...');
           scrollContainer.scrollTop = scrollContainer.scrollHeight;
-          await sleep(1000); // Wait for recent messages to load/render
-          collect();
+          await sleep(1000);
+          await collectAndSend();
 
-          var obs = new MutationObserver(function () { collect(); });
+          var obs = new MutationObserver(function () { collectAndSend(); });
           obs.observe(list, { childList: true, subtree: true, characterData: true });
 
           var noChangeCount = 0;
           var prevOldest = null;
+          
           while (true) {
-            if (stopRequested) {
-              console.log('Chat Extractor: Stop requested by user.');
-              break;
-            }
-            console.log('Chat Extractor: Attempting scroll up... (Collected ' + allMessagesMap.size + ' unique messages)');
-            // Scroll up using scrollTop and keyboard fallback
+            if (stopRequested) break;
+            
             scrollContainer.scrollTop = 0;
-            list.dispatchEvent(new KeyboardEvent('keydown', {
-              key: 'Home', code: 'Home', bubbles: true, cancelable: true
-            }));
+            list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', code: 'Home', bubbles: true, cancelable: true }));
 
             await sleep(2500);
-            collect();
+            await collectAndSend();
 
-            // Check date cutoff against our persistent collection
+            var currentOldestTS = null;
+            // Since we don't store nodes anymore, we need a way to check cutoff
+            // The background script will handle the final trim, but we need to stop scrolling
+            // We'll use the oldest in the current batch or recently processed
+            
             if (cutoffDate) {
-              var oldest = getOldestTimestamp(Array.from(allMessagesMap.values()));
-              console.log('Chat Extractor: Checking date cutoff. Oldest found:', oldest ? oldest.toLocaleString() : 'none', 'Target:', cutoffDate.toLocaleString());
-              if (oldest && oldest <= cutoffDate) {
-                console.log('Chat Extractor: Target date reached. Stopping scroll.');
-                break;
-              }
+              // This is a bit tricky now. Let's send the oldest TS seen so far to background
+              // and let it decide or we keep track of global oldest here.
             }
 
-            var currentOldest = getOldestTimestamp(Array.from(allMessagesMap.values()));
-            var changed = !prevOldest || !currentOldest
-              || currentOldest.getTime() !== prevOldest.getTime();
-            
+            // For simplicity in this refactor, I'll keep a simple global oldest TS
+            // (Note: getTimestamp is still available)
+            var currentOldest = null;
+            nodes = (list.id === 'chat-pane-list') ? Array.from(list.children) : Array.from(list.querySelectorAll('[data-tid="channel-pane-message"]'));
+            nodes.forEach(n => {
+              var ts = getTimestamp(n);
+              if (ts && (!currentOldest || ts < currentOldest)) currentOldest = ts;
+            });
+
+            if (cutoffDate && currentOldest && currentOldest <= cutoffDate) break;
+
+            var changed = !prevOldest || !currentOldest || currentOldest.getTime() !== prevOldest.getTime();
             if (!changed) {
               noChangeCount++;
-              console.log('Chat Extractor: No new messages loaded. Retry ' + noChangeCount + '/5');
-              if (noChangeCount >= 5) {
-                console.log('Chat Extractor: Maximum retries reached. Assuming top of chat.');
-                break;
-              }
+              if (noChangeCount >= 5) break;
             } else {
-              console.log('Chat Extractor: New messages loaded. Oldest timestamp is now:', currentOldest.toLocaleString());
               noChangeCount = 0;
             }
             prevOldest = currentOldest;
-
-            sendMsg({ type: 'progress', count: allMessagesMap.size });
+            
+            sendToBackground('PROGRESS', { count: processedIds.size, oldestTS: currentOldest ? currentOldest.getTime() : null });
           }
-
           obs.disconnect();
         }
       }
 
-      // Convert our Map back to a sorted array for final processing
-      var nodes = filterAndSort(Array.from(allMessagesMap.values()));
-
-      // Trim to the requested date range using our robust getTimestamp helper
-      if (cutoffDate) {
-        nodes = nodes.filter(function (n) {
-          var ts = getTimestamp(n);
-          if (!ts) return true; // Keep if we can't determine date
-          return ts >= cutoffDate;
-        });
+      // Final flush
+      if (batchBuffer.length > 0) {
+        sendToBackground('CHUNK_READY', { messages: batchBuffer });
+        batchBuffer = [];
       }
 
-      if (nodes.length === 0) {
-        sendMsg({ type: 'error', error: 'No messages could be extracted.' });
-        return;
-      }
+      sendToBackground('FINISH_EXTRACTION', { sort: sort });
 
-      if (sort === 'newest') nodes.reverse();
-
-      // Strategy: Use specific data-tid for channel titles, fallback to active chat title, 
-      // and finally fallback to document title.
-      var domTitle = document.querySelector('[data-tid="channelTitle-text"], [data-tid="active-chat-title"]');
-      var chatTitle = domTitle ? domTitle.innerText.trim() : '';
-      if (!chatTitle) {
-        // Fallback to window title: strip leading (notifications) and trailing Teams suffix
-        // Regex ^\(.*\)\s* is laxist to catch (3), (*3), ( 3), etc.
-        chatTitle = document.title
-          .replace(/^\(.*\)\s*/, '')
-          .replace(/\s*\|\s*Microsoft Teams$/, '')
-          .trim();
-      }
-      if (!chatTitle) chatTitle = 'teams-chat';
-
-      var html = await buildTranscript(nodes);
-      
-      // Strategy: Extract the absolute first and last message timestamps from the final sorted set
-      // to ensure the filename correctly reflects the exported range.
-      var oldestTS = nodes.length > 0 ? getTimestamp(nodes[0]) : null;
-      var newestTS = nodes.length > 0 ? getTimestamp(nodes[nodes.length - 1]) : null;
-
-      sendMsg({ 
-        type: 'result', 
-        html: html, 
-        count: nodes.length, 
-        title: chatTitle,
-        oldestTS: oldestTS ? oldestTS.toISOString() : null,
-        newestTS: newestTS ? newestTS.toISOString() : null
-      });
     } catch (e) {
-      sendMsg({ type: 'error', error: 'Extraction failed: ' + e.message });
+      sendToBackground('ERROR', { error: 'Extraction failed: ' + e.message });
+    } finally {
+      stopHeartbeat();
     }
   }
 
-  // Listen for extraction requests from the popup
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.action === 'extract') {
       scrollAndExtract(message.days, message.sort);
