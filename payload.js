@@ -280,12 +280,40 @@
       if (imgWrapper) htmlContent = imgWrapper.outerHTML;
     }
 
+    // Extract reactions
+    var reactions = [];
+    var reactionSummary = node.querySelector('[data-tid="diverse-reaction-summary"], [data-tid="channel-message-reaction-summary"], [class*="reaction-summary"]');
+    if (reactionSummary) {
+      reactionSummary.querySelectorAll('[data-tid*="reaction-pill"], [class*="reaction-pill"]').forEach(function(pill) {
+        var emoji = '';
+        var img = pill.querySelector('img[alt]');
+        if (img) {
+          emoji = img.alt;
+        } else {
+          var text = pill.innerText.trim();
+          var emojiMatch = text.match(/([\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]|\S)/);
+          emoji = emojiMatch ? emojiMatch[0] : '';
+        }
+
+        var count = 1;
+        var countMatch = pill.innerText.match(/\d+/);
+        if (countMatch) {
+          count = parseInt(countMatch[0], 10);
+        }
+        
+        if (emoji) {
+          reactions.push({ emoji: emoji, count: count });
+        }
+      });
+    }
+
     return {
       id: id,
       author: author,
       avatarUrl: avatarUrl,
       timestamp: timestamp,
       htmlContent: htmlContent,
+      reactions: reactions,
       images: images
     };
   }

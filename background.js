@@ -49,16 +49,16 @@ function renderHTML() {
     body { font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif; 
            background-color: #ffffff; color: #242424; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.4; } 
     h1 { font-size: 18px; font-weight: 600; color: #242424; border-bottom: 1px solid #e1e1e1; padding-bottom: 10px; margin-bottom: 20px; margin-top: 10px; } 
-    .message { display: flex; align-items: flex-start; margin-bottom: 8px; width: 100%; } 
-    .avatar { width: 32px; height: 32px; border-radius: 50%; margin-right: 10px; background-size: cover; background-position: center; background-color: #f0f0f0; flex-shrink: 0; } 
-    .content-wrapper { flex-grow: 1; max-width: 90%; }
-    .header { display: flex; align-items: center; margin-bottom: 2px; } 
-    .author { font-weight: 600; font-size: 14px; color: #242424; margin-right: 12px; } 
-    .timestamp { font-size: 12px; color: #616161; } 
-    .body { background-color: #F5F5F5; padding: 4px 14px; border-radius: 8px; font-size: 14px; color: #242424; word-wrap: break-word; display: inline-block; min-width: 100px; max-width: 100%; line-height: 1.3; } 
-    .body img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; } 
-    blockquote { border-left: 3px solid #C7C7C7; margin: 8px 0; padding: 8px 12px; background-color: #FAFAFA; border-radius: 4px; font-size: 13px; color: #424242; display: inline-block; min-width: 150px; max-width: 100%; box-sizing: border-box; } 
-    .date-divider { display: flex; align-items: center; text-align: center; margin: 24px 0; color: #616161; font-size: 12px; font-weight: 600; } 
+    .message { display: flex; align-items: flex-start; margin-bottom: 16px; width: 100%; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; margin-right: 10px; background-size: cover; background-position: center; background-color: #f0f0f0; flex-shrink: 0; }
+    .content-wrapper { flex-grow: 1; max-width: 90%; position: relative; }
+    .header { display: flex; align-items: center; margin-bottom: 2px; }
+    .author { font-weight: 600; font-size: 14px; color: #242424; margin-right: 12px; }
+    .timestamp { font-size: 12px; color: #616161; }
+    .body { background-color: #F5F5F5; padding: 4px 14px; border-radius: 8px; font-size: 14px; color: #242424; word-wrap: break-word; display: inline-block; min-width: 100px; max-width: 100%; line-height: 1.3; }
+    .body img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; }
+    blockquote { border-left: 3px solid #C7C7C7; margin: 8px 0; padding: 8px 12px; background-color: #FAFAFA; border-radius: 4px; font-size: 13px; color: #424242; display: inline-block; min-width: 150px; max-width: 100%; box-sizing: border-box; }
+    .reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: -2px; margin-left: 12px; position: relative; z-index: 1; }    .reaction-pill { background: #ffffff; border-radius: 12px; padding: 1px 6px; font-size: 13px; display: flex; align-items: center; gap: 4px; color: #424242; border: 1px solid #e1e1e1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }     .date-divider { display: flex; align-items: center; text-align: center; margin: 24px 0; color: #616161; font-size: 12px; font-weight: 600; } 
     .date-divider::before, .date-divider::after { content: ""; flex: 1; border-bottom: 1px solid #e1e1e1; } 
     .date-divider span { padding: 0 12px; } 
     a { color: #6264a7; text-decoration: none; } 
@@ -79,6 +79,15 @@ function renderHTML() {
       body = body.split(placeholder).join(`images/${img.localFilename}`);
     });
 
+    let reactionsHtml = '';
+    if (msg.reactions && msg.reactions.length > 0) {
+      reactionsHtml = '<div class="reactions">';
+      msg.reactions.forEach(r => {
+        reactionsHtml += `<span class="reaction-pill"><span>${r.emoji}</span> <span>${r.count}</span></span>`;
+      });
+      reactionsHtml += '</div>';
+    }
+
     html += `<div class="message">`;
     if (avatarFile) {
       html += `<div class="avatar" style="background-image: url('images/${avatarFile}')"></div>`;
@@ -91,6 +100,7 @@ function renderHTML() {
         <span class="timestamp">${dateStr}</span>
       </div>
       <div class="body">${body}</div>
+      ${reactionsHtml}
     </div></div>`;
   });
 
@@ -107,7 +117,13 @@ function renderMarkdown() {
     md += `### ${msg.author} (${dateStr})\n\n`;
     let content = msg.htmlContent.replace(/<br\s*\/?>/gi, '\n')
                                  .replace(/<(?:.|\n)*?>/gm, '');
-    md += `${content}\n\n`;
+    
+    let reactionSummary = '';
+    if (msg.reactions && msg.reactions.length > 0) {
+      reactionSummary = ' (Reactions: ' + msg.reactions.map(r => `${r.emoji} ${r.count}`).join(', ') + ')';
+    }
+
+    md += `${content}${reactionSummary}\n\n`;
     msg.images.forEach(img => {
       md += `![Image](images/${img.localFilename})\n\n`;
     });
@@ -117,11 +133,15 @@ function renderMarkdown() {
 }
 
 function renderCSV() {
-  let csv = "Timestamp,Author,Content\n";
+  let csv = "Timestamp,Author,Content,Reactions\n";
   extractionData.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toISOString();
     const content = msg.htmlContent.replace(/<(?:.|\n)*?>/gm, '').replace(/"/g, '""');
-    csv += `"${dateStr}","${msg.author.replace(/"/g, '""')}","${content}"\n`;
+    let reactions = '';
+    if (msg.reactions && msg.reactions.length > 0) {
+      reactions = msg.reactions.map(r => `${r.emoji}: ${r.count}`).join(', ');
+    }
+    csv += `"${dateStr}","${msg.author.replace(/"/g, '""')}","${content}","${reactions.replace(/"/g, '""')}"\n`;
   });
   return csv;
 }
