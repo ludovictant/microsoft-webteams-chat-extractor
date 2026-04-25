@@ -6,6 +6,8 @@
   var stopRequested = false;
   var heartbeatInterval = null;
   var currentDebugMode = false;
+  var connectedUserName = null;
+  var connectedUserAvatarUrl = null;
 
   function debugLog(...args) {
     if (currentDebugMode) console.log('[DEBUG]', ...args);
@@ -162,6 +164,16 @@
     
     var avatarImg = node.querySelector('.fui-Avatar__image, [class*="Avatar"] img');
     var avatarUrl = (avatarImg && avatarImg.src && !avatarImg.src.startsWith('data:')) ? avatarImg.src : null;
+    
+    // Fallback for connected user avatar
+    var normalizedAuthor = author.toLowerCase().replace(/,/g, '').split(/\s+/).sort().join(' ');
+    var normalizedConnected = connectedUserName ? connectedUserName.toLowerCase().replace(/,/g, '').split(/\s+/).sort().join(' ') : '';
+    
+    if (!avatarUrl && connectedUserAvatarUrl && (author === connectedUserName || (normalizedAuthor && normalizedAuthor === normalizedConnected))) {
+      debugLog('Using fallback avatar for connected user:', { author, connectedUserName });
+      avatarUrl = connectedUserAvatarUrl;
+    }
+
     if (avatarUrl) fetchAndSendAsset(avatarUrl);
 
     var ts = getTimestamp(node);
@@ -365,6 +377,28 @@
       var chatTitle = domTitle ? domTitle.innerText.trim() : document.title.replace(/^\(.*\)\s*/, '').replace(/\s*\|\s*Microsoft Teams$/, '').trim() || 'teams-chat';
 
       sendToBackground('START_EXTRACTION', { title: chatTitle, days: days });
+
+      // Extract connected user profile info as a fallback for their own messages
+      var meControl = document.querySelector('[data-tid="me-control-avatar"]');
+      if (meControl) {
+        var ariaLabel = meControl.getAttribute('aria-label') || '';
+        // Extract name: match the text AFTER the last occurrence of the preposition
+        // Handles "Image de profil de NAME." or "Profile picture of NAME."
+        var nameMatch = ariaLabel.match(/.*\s(?:de|of|von|di|da|do|du|del)\s+([^.]+?)(?:\.|$)/i);
+        if (nameMatch) {
+          connectedUserName = nameMatch[1].trim();
+        } else {
+          // Final fallback: try to clean common "Profile picture" prefixes
+          connectedUserName = ariaLabel.replace(/^(?:Image de profil de|Profile picture of|Profilbild von|Immagine del profilo di|Imagem de perfil de|Imagen de perfil de)\s+/i, '').replace(/\.$/, '').trim();
+        }
+        var meImg = meControl.querySelector('img.fui-Avatar__image');
+        if (meImg && meImg.src) {
+          connectedUserAvatarUrl = meImg.src;
+          // Pre-fetch immediately so it's available for the ZIP even if matching takes time
+          fetchAndSendAsset(connectedUserAvatarUrl);
+        }
+        debugLog('Extracted connected user info:', { connectedUserName, connectedUserAvatarUrl, ariaLabel });
+      }
 
       var collectAndSend = async function () {
         var nodes = [];
