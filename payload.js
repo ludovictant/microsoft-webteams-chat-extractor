@@ -5,6 +5,11 @@
 
   var stopRequested = false;
   var heartbeatInterval = null;
+  var currentDebugMode = false;
+
+  function debugLog(...args) {
+    if (currentDebugMode) console.log('[DEBUG]', ...args);
+  }
 
   // Send a message to the background script
   function sendToBackground(action, data) {
@@ -148,6 +153,7 @@
 
   // Serialize a message node to JSON-based MDO format
   async function serializeMessage(node) {
+    debugLog('Serializing message node:', node);
     var id = getMessageId(node);
     if (!id || node.querySelector('[aria-label="Animated GIF"]')) return null;
 
@@ -234,11 +240,13 @@
         targetUrl = origSrc;
       }
 
+      debugLog('Processing image:', { rawSrc, gallerySrc });
+
       // Preserve debug attributes
-      if (rawSrc) img.setAttribute('DEBUG-src', rawSrc);
+      if (rawSrc) img.setAttribute('debug-src', rawSrc);
       var dsrc = img.getAttribute('data-src');
-      if (dsrc) img.setAttribute('DEBUG-data-src', dsrc);
-      if (gallerySrc) img.setAttribute('DEBUG-data-gallery-src', gallerySrc);
+      if (dsrc) img.setAttribute('debug-data-src', dsrc);
+      if (gallerySrc) img.setAttribute('debug-data-gallery-src', gallerySrc);
 
       if (targetUrl && !targetUrl.startsWith('data:')) {
         var imgId = 'img_' + timestamp + '_' + i;
@@ -265,9 +273,14 @@
       el.removeAttribute('data-is-focusable');
       for (var j = el.attributes.length - 1; j >= 0; j--) {
         var attr = el.attributes[j];
-        if (attr.name.startsWith('data-')) {
-            if (attr.name.startsWith('DEBUG-')) continue;
-            el.removeAttribute(attr.name);
+        var attrName = attr.name.toLowerCase();
+        
+        // Handle debug- and data- attributes: keep only if debug mode is ON
+        if (attrName.startsWith('debug-') || attrName.startsWith('data-')) {
+            if (!currentDebugMode) {
+                el.removeAttribute(attr.name);
+            }
+            continue;
         }
       }
     });
@@ -450,6 +463,8 @@
 
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.action === 'extract') {
+      currentDebugMode = !!message.debugMode;
+      debugLog('Extraction started with debug mode:', currentDebugMode);
       scrollAndExtract(message.days, message.sort);
       sendResponse({ status: 'started' });
     } else if (message.action === 'stop') {

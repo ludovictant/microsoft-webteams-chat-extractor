@@ -1,5 +1,26 @@
 importScripts('lib/jszip.min.js');
 
+let currentDebugMode = false;
+function debugLog(...args) {
+  if (currentDebugMode) console.log('[DEBUG]', ...args);
+}
+
+// Initial load of debug mode
+chrome.storage.session.get(['debugMode'], (result) => {
+  // Use !! to explicitly cast to boolean (handles undefined as false)
+  currentDebugMode = !!result.debugMode;
+  debugLog('Initial debug mode:', currentDebugMode);
+});
+
+// Watch for changes in debug mode
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'session' && changes.debugMode) {
+    // Use !! to explicitly cast to boolean (handles undefined as false)
+    currentDebugMode = !!changes.debugMode.newValue;
+    debugLog('Debug mode updated to:', currentDebugMode);
+  }
+});
+
 console.log('Background script: Initializing...');
 
 let extractionData = {
@@ -185,10 +206,11 @@ async function generateZip() {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Background received message:', message.action);
+  debugLog('Background received message:', message.action);
 
   switch (message.action) {
     case 'START_EXTRACTION':
+      debugLog('Starting extraction for:', message.title);
       extractionData = {
         title: message.title,
         days: message.days,

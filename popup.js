@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var progressBarContainer = document.getElementById('progressBarContainer');
 	var progressBar = document.getElementById('progressBar');
 	var dateDepth = document.getElementById('dateDepth');
+	var debugToggle = document.getElementById('debugToggle');
 	
 	var activeTabId = null;
 	var pollingInterval = null;
@@ -21,6 +22,24 @@ document.addEventListener('DOMContentLoaded', function () {
 	var versionNumber = document.getElementById('versionNumber');
 	if (versionNumber) {
 		versionNumber.textContent = chrome.runtime.getManifest().version;
+	}
+
+	// Load debug mode state
+	chrome.storage.session.get(['debugMode'], function(result) {
+		if (debugToggle) {
+			// Use !! to explicitly cast to boolean (handles undefined as false)
+			debugToggle.checked = !!result.debugMode;
+		}
+	});
+
+	// Handle debug toggle changes
+	if (debugToggle) {
+		debugToggle.addEventListener('change', function() {
+			var isEnabled = debugToggle.checked;
+			chrome.storage.session.set({ debugMode: isEnabled }, function() {
+				console.log('Debug mode set to:', isEnabled);
+			});
+		});
 	}
 
 	function showToast(text) {
@@ -170,7 +189,18 @@ document.addEventListener('DOMContentLoaded', function () {
 				files: ['payload.js']
 			});
 			console.log('Popup sending extract signal to tab:', tab.id, { days, sort });
-			await chrome.tabs.sendMessage(tab.id, { action: 'extract', days: days, sort: sort });
+			
+			// Get current debug mode from storage to ensure it's up to date
+			chrome.storage.session.get(['debugMode'], async function(result) {
+				// Use !! to explicitly cast to boolean (handles undefined as false)
+				var debugMode = !!result.debugMode;
+				await chrome.tabs.sendMessage(tab.id, { 
+					action: 'extract', 
+					days: days, 
+					sort: sort,
+					debugMode: debugMode 
+				});
+			});
 		} catch (err) {
 			console.error('Extraction error:', err);
 		}
