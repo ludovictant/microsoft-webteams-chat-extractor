@@ -49,6 +49,13 @@ function formatFileTS(ts) {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+function formatLogTS(ts) {
+  if (!ts) return "unknown";
+  const d = new Date(ts);
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
 function getAvatarFileName(author) {
   return `avatar_${sanitizeFileName(author)}.png`;
 }
@@ -327,6 +334,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'PROGRESS':
       extractionData.count = message.count;
       extractionData.oldestTS = message.oldestTS;
+      console.log(`[PROGRESS] Oldest message parsed: ${formatLogTS(extractionData.oldestTS)} (Total: ${extractionData.count})`);
       sendResponse({ ok: true });
       break;
 

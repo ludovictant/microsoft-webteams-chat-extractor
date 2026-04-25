@@ -17,6 +17,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	var activeTabId = null;
 	var pollingInterval = null;
 	var autoDownloadTriggered = false;
+	var currentDebugMode = false;
+
+	function debugLog(...args) {
+		if (currentDebugMode) console.log('[DEBUG]', ...args);
+	}
 
 	// Set version number
 	var versionNumber = document.getElementById('versionNumber');
@@ -26,9 +31,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	// Load debug mode state
 	chrome.storage.session.get(['debugMode'], function(result) {
+		currentDebugMode = !!result.debugMode;
 		if (debugToggle) {
 			// Use !! to explicitly cast to boolean (handles undefined as false)
-			debugToggle.checked = !!result.debugMode;
+			debugToggle.checked = currentDebugMode;
 		}
 	});
 
@@ -36,8 +42,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	if (debugToggle) {
 		debugToggle.addEventListener('change', function() {
 			var isEnabled = debugToggle.checked;
+			currentDebugMode = isEnabled;
 			chrome.storage.session.set({ debugMode: isEnabled }, function() {
-				console.log('Debug mode set to:', isEnabled);
+				debugLog('Debug mode set to:', isEnabled);
 			});
 		});
 	}
@@ -49,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	function updateUI(data) {
-		console.log('Updating UI with state:', data.status, data);
+		debugLog('Updating UI with state:', data.status, data);
 		if (data.status === 'idle') {
 			optionsDiv.style.display = 'block';
 			statusDiv.style.display = 'none';
@@ -64,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (data.oldestTS) {
 				var oldest = new Date(data.oldestTS);
 				dateDepth.style.display = 'block';
-				dateDepth.textContent = 'Reached: ' + oldest.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+				dateDepth.textContent = 'Reached: ' + oldest.toLocaleString([], { year: 'numeric', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 				
 				if (data.days > 0 && data.startTime) {
 					progressBarContainer.style.display = 'block';
@@ -107,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			// Auto-download logic
 			if (!autoDownloadTriggered) {
 				autoDownloadTriggered = true;
-				console.log('Popup: Auto-triggering ZIP download...');
+				debugLog('Popup: Auto-triggering ZIP download...');
 				downloadZip();
 			}
 		} else if (data.status === 'error') {
@@ -119,10 +126,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	function pollStatus() {
-		console.log('Popup polling status...');
+		debugLog('Popup polling status...');
 		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, function(response) {
 			if (response) {
-				console.log('Popup received poll response:', response.status, response);
+				debugLog('Popup received poll response:', response.status, response);
 				updateUI(response);
 			} else {
 				console.warn('Popup received no response from poll.');
@@ -138,10 +145,10 @@ document.addEventListener('DOMContentLoaded', function () {
 		downloadZipBtn.disabled = true;
 		downloadZipBtn.textContent = 'Generating ZIP...';
 		
-		console.log('Popup requesting ZIP download...');
+		debugLog('Popup requesting ZIP download...');
 		chrome.runtime.sendMessage({ action: 'DOWNLOAD_ZIP' }, function(response) {
 			if (response && response.base64) {
-				console.log('Popup received ZIP data (Base64), starting local download.');
+				debugLog('Popup received ZIP data (Base64), starting local download.');
 				// Convert Base64 to Blob
 				var binaryString = atob(response.base64);
 				var bytes = new Uint8Array(binaryString.length);
@@ -183,12 +190,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
 		try {
 			autoDownloadTriggered = false; // Reset flag
-			console.log('Popup injecting payload.js into tab:', tab.id);
+			debugLog('Popup injecting payload.js into tab:', tab.id);
 			await chrome.scripting.executeScript({
 				target: { tabId: tab.id },
 				files: ['payload.js']
 			});
-			console.log('Popup sending extract signal to tab:', tab.id, { days, sort });
+			debugLog('Popup sending extract signal to tab:', tab.id, { days, sort });
 			
 			// Get current debug mode from storage to ensure it's up to date
 			chrome.storage.session.get(['debugMode'], async function(result) {
@@ -213,7 +220,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	// Handle reset button
 	resetBtn.addEventListener('click', function() {
-		console.log('Popup reset button clicked.');
+		debugLog('Popup reset button clicked.');
 		chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
 			pollStatus();
 		});
@@ -221,18 +228,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	// Handle stop button
 	stopBtn.addEventListener('click', async function() {
-		console.log('Popup stop button clicked.');
+		debugLog('Popup stop button clicked.');
 		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, async function(data) {
 			if (data && data.status === 'error') {
-				console.log('Popup resetting after error.');
+				debugLog('Popup resetting after error.');
 				chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
 					pollStatus();
 				});
 				return;
 			}
-			console.log('Popup sending STOP_EXTRACTION to background.');
+			debugLog('Popup sending STOP_EXTRACTION to background.');
 			chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
-				console.log('Stop signal confirmed by background.');
+				debugLog('Stop signal confirmed by background.');
 			});
 		});
 	});
