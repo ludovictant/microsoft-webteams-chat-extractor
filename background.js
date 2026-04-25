@@ -21,7 +21,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-console.log('Background script: Initializing...');
+  debugLog('Background script: Initializing...');
 
 let extractionData = {
   title: '',
@@ -183,7 +183,7 @@ async function generateZip() {
       const blob = extractionData.urlToBlob.get(bestAvatarUrl);
       const filename = getAvatarFileName(msg.author);
       if (blob && !writtenFiles.has(filename)) {
-        console.log('[ZIP] Adding master avatar asset:', filename);
+        debugLog('[ZIP] Adding master avatar asset:', filename);
         imgFolder.file(filename, blob);
         writtenFiles.add(filename);
       }
@@ -194,7 +194,7 @@ async function generateZip() {
       const blob = extractionData.urlToBlob.get(img.url);
       const filename = img.localFilename;
       if (blob && !writtenFiles.has(filename)) {
-        console.log('[ZIP] Adding message asset:', filename);
+        debugLog('[ZIP] Adding message asset:', filename);
         imgFolder.file(filename, blob);
         writtenFiles.add(filename);
       }
@@ -253,7 +253,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         processedAssets: 0,
         totalAssets: 0
       };
-      console.log('Background state reset to idle.');
+      debugLog('Background state reset to idle.');
       sendResponse({ status: 'idle' });
       break;
 
@@ -291,7 +291,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       base64ToBlob(message.base64, 'image/png').then(blob => {
         extractionData.urlToBlob.set(message.url, blob);
         extractionData.processedAssets++;
-        console.log('Asset stored. Processed:', extractionData.processedAssets, '/', extractionData.totalAssets);
+        debugLog('Asset stored. Processed:', extractionData.processedAssets, '/', extractionData.totalAssets);
       });
       sendResponse({ ok: true });
       break;
@@ -322,7 +322,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'DOWNLOAD_ZIP':
-      console.log('Generating ZIP archive...');
+      debugLog('Generating ZIP archive...');
       
       // Calculate temporal range
       let startTS = 0;
@@ -348,7 +348,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         
         const base64 = btoa(binaryString);
         
-        console.log('ZIP generated. Size:', buffer.byteLength, 'bytes.');
+        debugLog('ZIP generated. Size:', buffer.byteLength, 'bytes.');
         sendResponse({ 
           base64: base64, 
           filename: finalFilename 

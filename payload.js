@@ -15,7 +15,7 @@
 
   // Send a message to the background script
   function sendToBackground(action, data) {
-    console.log('Content Script sending to background:', action, data);
+    debugLog('Content Script sending to background:', action, data);
     chrome.runtime.sendMessage({ action: action, ...data }).catch(function (err) {
       console.warn('Content Script failed to send message:', action, err);
     });
@@ -118,12 +118,12 @@
     // Detect if the URL belongs to a Teams/Microsoft internal domain
     var isInternal = url.indexOf('teams.microsoft.com') !== -1 || url.indexOf('microsoft.com') !== -1;
     
-    console.log('[DEBUG] Starting ' + (isInternal ? 'authenticated' : 'anonymous') + ' download for asset:', url);
+    debugLog('Starting ' + (isInternal ? 'authenticated' : 'anonymous') + ' download for asset:', url);
     
     var token = getTeamsToken();
     var headers = {};
     if (isInternal && token) {
-      console.log('[DEBUG] Internal domain detected, attaching auth token.');
+      debugLog('Internal domain detected, attaching auth token.');
       headers['Authorization'] = 'Bearer ' + token;
     }
 
@@ -141,7 +141,7 @@
       const size = blob.size;
       const reader = new FileReader();
       reader.onloadend = function() {
-        console.log('[DEBUG] Asset downloaded (' + size + ' bytes) and converted to Base64:', url);
+        debugLog('Asset downloaded (' + size + ' bytes) and converted to Base64:', url);
         sendToBackground('ASSET_READY', { 
           url: url, 
           base64: reader.result.split(',')[1]
@@ -244,7 +244,7 @@
       var targetUrl = rawSrc;
 
       if (rawSrc.startsWith('blob:') && gallerySrc) {
-        console.log('[DEBUG] Image ' + i + ': Detected blob src, correcting to data-gallery-src:', gallerySrc.substring(0, 80) + '...');
+        debugLog('Image ' + i + ': Detected blob src, correcting to data-gallery-src:', gallerySrc.substring(0, 80) + '...');
         targetUrl = gallerySrc;
       } else if (gallerySrc) {
         targetUrl = gallerySrc;
@@ -265,7 +265,7 @@
         images.push({ url: targetUrl, id: imgId });
         
         // 2. Set the placeholder for background replacement
-        console.log('[DEBUG] Image ' + i + ': Assigning placeholder ##' + imgId + '##');
+        debugLog('Image ' + i + ': Assigning placeholder ##' + imgId + '##');
         img.src = '##' + imgId + '##'; 
         
         fetchAndSendAsset(targetUrl);
@@ -322,20 +322,31 @@
     if (reactionSummary) {
       reactionSummary.querySelectorAll('[data-tid*="reaction-pill"], [class*="reaction-pill"]').forEach(function(pill) {
         var emoji = '';
-        var img = pill.querySelector('img[alt]');
+        var img = pill.querySelector('[data-tid="emoticon-renderer"] img[alt], img[alt]');
         if (img) {
           emoji = img.alt;
         } else {
+          // If no image, look for emoji character in text nodes, but avoid the count
           var text = pill.innerText.trim();
-          var emojiMatch = text.match(/([\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]|\S)/);
+          var emojiMatch = text.match(/([\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF])/);
           emoji = emojiMatch ? emojiMatch[0] : '';
         }
 
         var count = 1;
-        var countMatch = pill.innerText.match(/\d+/);
-        if (countMatch) {
-          count = parseInt(countMatch[0], 10);
+        // 1. Try to find the dedicated count element (usually a span with fui-StyledText)
+        var countEl = pill.querySelector('.fui-StyledText, [class*="StyledText"]');
+        if (countEl && !isNaN(parseInt(countEl.innerText.trim(), 10))) {
+          count = parseInt(countEl.innerText.trim(), 10);
+        } else {
+          // 2. Fallback: match the LAST number in the text (to avoid "3 reactions" text)
+          var text = pill.innerText.trim();
+          var countMatches = text.match(/\d+/g);
+          if (countMatches) {
+            count = parseInt(countMatches[countMatches.length - 1], 10);
+          }
         }
+        
+        debugLog('Extracted reaction:', { emoji: emoji, count: count, rawText: pill.innerText.trim() });
         
         if (emoji) {
           reactions.push({ emoji: emoji, count: count });
@@ -429,7 +440,7 @@
       if (days >= 0) {
         var scrollContainer = findScrollContainer(list);
         if (scrollContainer) {
-          console.log('[DEBUG] Initial scroll to bottom to capture recent messages...');
+          debugLog('Initial scroll to bottom to capture recent messages...');
           scrollContainer.scrollTop = scrollContainer.scrollHeight;
           await sleep(1000);
         }
