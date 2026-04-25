@@ -260,6 +260,14 @@
       }
     }
 
+    // Unwrap AMSImage metadata containers
+    clone.querySelectorAll('span[itemtype*="AMSImage"]').forEach(function(span) {
+      while (span.firstChild) {
+        span.parentNode.insertBefore(span.firstChild, span);
+      }
+      span.parentNode.removeChild(span);
+    });
+
     // Clean node attributes from the CLONE
     clone.querySelectorAll('*').forEach(function (el) {
       el.removeAttribute('class');
@@ -271,6 +279,9 @@
       el.removeAttribute('aria-hidden');
       el.removeAttribute('data-tid');
       el.removeAttribute('data-is-focusable');
+      el.removeAttribute('itemtype');
+      el.removeAttribute('itemprop');
+      el.removeAttribute('itemscope');
       for (var j = el.attributes.length - 1; j >= 0; j--) {
         var attr = el.attributes[j];
         var attrName = attr.name.toLowerCase();
