@@ -224,11 +224,21 @@
     });
 
     // Turn block-level @mention divs into inline spans
-    clone.querySelectorAll('div[aria-label*="Mention"]').forEach(function (div) {
-      var span = document.createElement('span');
-      span.innerText = div.innerText;
-      span.style.fontWeight = 'bold';
-      div.parentNode.replaceChild(span, div);
+    // Improved to match different languages (Mention, mentionné, etc.) and specific itemtypes
+    clone.querySelectorAll('div[aria-label*="ention"], div[data-tid*="mention"], [itemtype*="Mention"]').forEach(function (el) {
+      if (el.tagName === 'DIV') {
+        var span = document.createElement('span');
+        // Move all children to the new span to preserve internal structure
+        while (el.firstChild) {
+          span.appendChild(el.firstChild);
+        }
+        // If it was a mention, maybe style it a bit
+        var label = el.getAttribute('aria-label') || '';
+        if (label.toLowerCase().indexOf('ention') !== -1 || el.querySelector('[itemtype*="Mention"]')) {
+          span.style.fontStyle = 'italic';
+        }
+        el.parentNode.replaceChild(span, el);
+      }
     });
 
     // Extract body images
@@ -288,9 +298,15 @@
       el.removeAttribute('role');
       el.removeAttribute('aria-label');
       el.removeAttribute('aria-labelledby');
+      el.removeAttribute('aria-describedby');
+      el.removeAttribute('aria-haspopup');
+      el.removeAttribute('aria-expanded');
       el.removeAttribute('aria-hidden');
+      el.removeAttribute('aria-live');
+      el.removeAttribute('aria-atomic');
       el.removeAttribute('data-tid');
       el.removeAttribute('data-is-focusable');
+      el.removeAttribute('data-lpc-hover-target-id');
       el.removeAttribute('itemtype');
       el.removeAttribute('itemprop');
       el.removeAttribute('itemscope');
