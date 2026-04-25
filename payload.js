@@ -63,6 +63,7 @@
 
   // Standalone helper for message ID
   function getMessageId(node) {
+    if (node.getAttribute('data-mid')) return node.getAttribute('data-mid');
     var msgBody = node.querySelector('[id^="message-body-"]');
     if (msgBody) return msgBody.id;
     if (node.id && (node.id.startsWith('reply-chain-summary-') || node.id.startsWith('post-message-renderer-'))) {
@@ -158,6 +159,25 @@
     debugLog('Serializing message node:', node);
     var id = getMessageId(node);
     if (!id || node.querySelector('[aria-label="Animated GIF"]')) return null;
+
+    // Handle System/Control messages (e.g., membership changes)
+    if (node.classList.contains('fui-ChatControlMessageItem') || node.querySelector('[data-tid="control-message-renderer"]')) {
+      var controlTextEl = node.querySelector('[id^="control-message-"], [id^="content-control-message-"]');
+      var controlText = controlTextEl ? controlTextEl.innerText.trim() : node.innerText.trim();
+      var ts = getTimestamp(node);
+      
+      return {
+        id: id,
+        type: 'system',
+        content: controlText,
+        timestamp: ts ? ts.getTime() : Date.now(),
+        author: 'System',
+        avatarUrl: null,
+        htmlContent: '',
+        reactions: [],
+        images: []
+      };
+    }
 
     var authorEl = node.querySelector('[data-tid="message-author-name"], [id^="author-"]');
     var author = authorEl ? authorEl.innerText.trim() : 'Unknown';
@@ -334,9 +354,14 @@
 
     // Extract reactions
     var reactions = [];
-    var reactionSummary = node.querySelector('[data-tid="diverse-reaction-summary"], [data-tid="channel-message-reaction-summary"], [class*="reaction-summary"]');
+    var reactionSummary = node.querySelector('[data-tid*="reaction-summary"], [class*="reaction-summary"], [class*="reactions"], [data-tid="emoticon-renderer"]');
     if (reactionSummary) {
-      reactionSummary.querySelectorAll('[data-tid*="reaction-pill"], [class*="reaction-pill"]').forEach(function(pill) {
+      // If we matched an emoticon-renderer directly, we want to look for pills in its parent/closest summary container
+      var searchRoot = reactionSummary.closest('[role="toolbar"], [class*="reactions"]') || reactionSummary.parentElement || reactionSummary;
+      searchRoot.querySelectorAll('[data-tid*="reaction-pill"], [class*="reaction-pill"], [data-tid="emoticon-renderer"]').forEach(function(pill) {
+        // Avoid duplicate processing if we are matching both the pill and the renderer
+        if (pill.tagName === 'SPAN' && pill.closest('[data-tid*="pill"], [class*="pill"]')) return;
+
         var emoji = '';
         var img = pill.querySelector('[data-tid="emoticon-renderer"] img[alt], img[alt]');
         if (img) {
@@ -432,7 +457,7 @@
         if (list.id === 'chat-pane-list') {
           nodes = Array.from(list.children);
         } else {
-          nodes = Array.from(list.querySelectorAll('[data-tid="channel-pane-message"], [id^="reply-chain-summary-"]'));
+          nodes = Array.from(list.querySelectorAll('[data-tid="channel-pane-message"], [id^="reply-chain-summary-"], .fui-ChatControlMessageItem, [data-tid="control-message-renderer"]'));
         }
 
         for (var i = 0; i < nodes.length; i++) {

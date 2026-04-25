@@ -79,7 +79,10 @@ function renderHTML() {
     .body { background-color: #F5F5F5; padding: 4px 14px; border-radius: 8px; font-size: 14px; color: #242424; word-wrap: break-word; display: inline-block; min-width: 100px; max-width: 100%; line-height: 1.3; }
     .body img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; }
     blockquote { border-left: 3px solid #C7C7C7; margin: 8px 0; padding: 8px 12px; background-color: #FAFAFA; border-radius: 4px; font-size: 13px; color: #424242; display: inline-block; min-width: 150px; max-width: 100%; box-sizing: border-box; }
-    .reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: -2px; margin-left: 12px; position: relative; z-index: 1; }    .reaction-pill { background: #ffffff; border-radius: 12px; padding: 1px 6px; font-size: 13px; display: flex; align-items: center; gap: 4px; color: #424242; border: 1px solid #e1e1e1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }     .date-divider { display: flex; align-items: center; text-align: center; margin: 24px 0; color: #616161; font-size: 12px; font-weight: 600; } 
+    .reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: -2px; margin-left: 12px; position: relative; z-index: 1; }    .reaction-pill { background: #ffffff; border-radius: 12px; padding: 1px 6px; font-size: 13px; display: flex; align-items: center; gap: 4px; color: #424242; border: 1px solid #e1e1e1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }     
+    .system-message { display: flex; align-items: center; margin-bottom: 12px; margin-left: 42px; font-size: 13px; color: #616161; gap: 8px; }
+    .system-message svg { flex-shrink: 0; color: #616161; }
+    .date-divider { display: flex; align-items: center; text-align: center; margin: 24px 0; color: #616161; font-size: 12px; font-weight: 600; } 
     .date-divider::before, .date-divider::after { content: ""; flex: 1; border-bottom: 1px solid #e1e1e1; } 
     .date-divider span { padding: 0 12px; } 
     a { color: #6264a7; text-decoration: none; } 
@@ -90,6 +93,14 @@ function renderHTML() {
   extractionData.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toLocaleString();
     
+    if (msg.type === 'system') {
+      html += `<div class="system-message">
+        <svg font-size="18" width="1em" height="1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM6 6a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm-2 5a2 2 0 0 0-2 2c0 1.7.83 2.97 2.13 3.8A9.14 9.14 0 0 0 9 18c.41 0 .82-.02 1.21-.06A5.5 5.5 0 0 1 9.6 17 12 12 0 0 1 9 17a8.16 8.16 0 0 1-4.33-1.05A3.36 3.36 0 0 1 3 13a1 1 0 0 1 1-1h5.6c.18-.36.4-.7.66-1H4Zm10.5 8a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0-7c.28 0 .5.22.5.5V14h1.5a.5.5 0 0 1 0 1H15v1.5a.5.5 0 0 1-1 0V15h-1.5a.5.5 0 0 1 0-1H14v-1.5c0-.28.22-.5.5-.5Z"></path></svg>
+        <span>${msg.content}</span>
+      </div>`;
+      return;
+    }
+
     // Propagate avatar from master map if missing on this specific message
     const bestAvatarUrl = msg.avatarUrl || extractionData.authorToAvatarUrl.get(msg.author);
     const avatarFile = bestAvatarUrl ? getAvatarFileName(msg.author) : null;
@@ -135,6 +146,11 @@ function renderMarkdown() {
   let md = `# ${extractionData.title}\n\n`;
   extractionData.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toLocaleString();
+    if (msg.type === 'system') {
+      md += `> **System:** ${msg.content} (${dateStr})\n\n`;
+      md += `---\n\n`;
+      return;
+    }
     md += `### ${msg.author} (${dateStr})\n\n`;
     let content = msg.htmlContent.replace(/<br\s*\/?>/gi, '\n')
                                  .replace(/<(?:.|\n)*?>/gm, '');
@@ -157,6 +173,10 @@ function renderCSV() {
   let csv = "Timestamp,Author,Content,Reactions\n";
   extractionData.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toISOString();
+    if (msg.type === 'system') {
+      csv += `"${dateStr}","System","${msg.content.replace(/"/g, '""')}",""\n`;
+      return;
+    }
     const content = msg.htmlContent.replace(/<(?:.|\n)*?>/gm, '').replace(/"/g, '""');
     let reactions = '';
     if (msg.reactions && msg.reactions.length > 0) {
@@ -177,9 +197,11 @@ async function generateZip() {
   const writtenFiles = new Set();
 
   extractionData.messages.forEach(msg => {
+    if (msg.type === 'system') return;
+
     // Save master avatar for this author
-    const bestAvatarUrl = msg.avatarUrl || extractionData.authorToAvatarUrl.get(msg.author);
-    if (bestAvatarUrl) {
+    const bestAvatarUrl = msg.avatarUrl || (msg.author ? extractionData.authorToAvatarUrl.get(msg.author) : null);
+    if (bestAvatarUrl && msg.author) {
       const blob = extractionData.urlToBlob.get(bestAvatarUrl);
       const filename = getAvatarFileName(msg.author);
       if (blob && !writtenFiles.has(filename)) {
@@ -190,15 +212,17 @@ async function generateZip() {
     }
 
     // Save message images
-    msg.images.forEach(img => {
-      const blob = extractionData.urlToBlob.get(img.url);
-      const filename = img.localFilename;
-      if (blob && !writtenFiles.has(filename)) {
-        debugLog('[ZIP] Adding message asset:', filename);
-        imgFolder.file(filename, blob);
-        writtenFiles.add(filename);
-      }
-    });
+    if (msg.images) {
+      msg.images.forEach(img => {
+        const blob = extractionData.urlToBlob.get(img.url);
+        const filename = img.localFilename;
+        if (blob && !writtenFiles.has(filename)) {
+          debugLog('[ZIP] Adding message asset:', filename);
+          imgFolder.file(filename, blob);
+          writtenFiles.add(filename);
+        }
+      });
+    }
   });
 
   const zipBlob = await zip.generateAsync({ type: "blob" });
@@ -261,27 +285,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       message.messages.forEach(msg => {
         extractionData.messages.push(msg);
         
+        if (msg.type === 'system') return;
+
         // Update master avatar map
-        if (msg.avatarUrl && !extractionData.authorToAvatarUrl.has(msg.author)) {
+        if (msg.avatarUrl && msg.author && !extractionData.authorToAvatarUrl.has(msg.author)) {
           extractionData.authorToAvatarUrl.set(msg.author, msg.avatarUrl);
         }
 
         // Register unique avatar for download
-        const finalAvatarUrl = msg.avatarUrl || extractionData.authorToAvatarUrl.get(msg.author);
+        const finalAvatarUrl = msg.avatarUrl || (msg.author ? extractionData.authorToAvatarUrl.get(msg.author) : null);
         if (finalAvatarUrl && !extractionData.seenAssetUrls.has(finalAvatarUrl)) {
           extractionData.seenAssetUrls.add(finalAvatarUrl);
           extractionData.totalAssets++;
         }
 
         // Register unique body images for download
-        msg.images.forEach((img, idx) => {
-          const filename = `msg_${formatFileTS(msg.timestamp)}_${sanitizeFileName(msg.id)}_${idx}.png`;
-          img.localFilename = filename; 
-          if (!extractionData.seenAssetUrls.has(img.url)) {
-            extractionData.seenAssetUrls.add(img.url);
-            extractionData.totalAssets++;
-          }
-        });
+        if (msg.images) {
+          msg.images.forEach((img, idx) => {
+            const filename = `msg_${formatFileTS(msg.timestamp)}_${sanitizeFileName(msg.id)}_${idx}.png`;
+            img.localFilename = filename; 
+            if (!extractionData.seenAssetUrls.has(img.url)) {
+              extractionData.seenAssetUrls.add(img.url);
+              extractionData.totalAssets++;
+            }
+          });
+        }
       });
       extractionData.count = extractionData.messages.length;
       sendResponse({ count: extractionData.count });
