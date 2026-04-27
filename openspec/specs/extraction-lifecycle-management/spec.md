@@ -37,3 +37,19 @@ The system SHALL continuously poll for new messages while in the `stuck` state a
 - **AND** a change in the oldest message timestamp is detected (due to manual scrolling)
 - **THEN** the system SHALL automatically revert to the `extracting` state and continue the process.
 - **AND** it SHALL display a green success notification in the popup for 10 seconds.
+
+### Requirement: Force Stop and Export during Processing or Stall
+The system SHALL allow users to manually terminate the image processing phase or a stalled scrolling phase and immediately trigger the export of all collected data and already-processed assets.
+
+#### Scenario: Force stop during processing
+- **WHEN** the extension is in the `processing` state
+- **THEN** the "Stop Extraction" button SHALL change its label to "Force Stop and Export".
+- **WHEN** the user clicks the "Force Stop and Export" button
+- **THEN** the system SHALL immediately transition to the `ready` state.
+
+#### Scenario: Force stop during stall
+- **WHEN** the extension is in the `stuck` state
+- **THEN** the "Stop Extraction" button SHALL change its label to "Stop and Export".
+- **WHEN** the user clicks the "Stop and Export" button
+- **THEN** the system SHALL signal the content script to stop.
+- **AND** the system SHALL immediately transition to the `ready` state.

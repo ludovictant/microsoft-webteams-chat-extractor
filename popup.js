@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeBtn) resumeBtn.style.display = 'none';
+			if (stopBtn) stopBtn.textContent = 'Stop Extraction then Export';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			
@@ -108,6 +109,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeBtn) resumeBtn.style.display = 'block';
+			if (stopBtn) stopBtn.textContent = 'Stop and Export';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
@@ -122,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
+			if (stopBtn) stopBtn.textContent = 'Force Stop and Export';
 			
 			rangeText.textContent = 'Processing chat data\u2026';
 			progressBar.classList.remove('indeterminate');
@@ -276,10 +279,18 @@ document.addEventListener('DOMContentLoaded', function () {
 				});
 				return;
 			}
-			debugLog('Popup sending STOP_EXTRACTION to background.');
-			chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
-				debugLog('Stop signal confirmed by background.');
-			});
+			
+			if (data && (data.status === 'processing' || data.status === 'stuck')) {
+				debugLog('Popup sending FORCE_STOP_PROCESSING to background.');
+				chrome.runtime.sendMessage({ action: 'FORCE_STOP_PROCESSING' }, function(response) {
+					debugLog('Force stop processing signal confirmed by background.');
+				});
+			} else {
+				debugLog('Popup sending STOP_EXTRACTION to background.');
+				chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
+					debugLog('Stop signal confirmed by background.');
+				});
+			}
 		});
 	});
 });

@@ -268,6 +268,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: 'stopped' });
       break;
 
+    case 'FORCE_STOP_PROCESSING':
+      debugLog('Forcing stop of current phase. Transitioning to ready.');
+      if (extractionData.activeTabId) {
+        chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'stop' }).catch(() => {});
+      }
+      extractionData.status = 'ready';
+      sendResponse({ status: 'ready' });
+      break;
+
     case 'RESET_STATUS':
       extractionData = {
         title: '',
