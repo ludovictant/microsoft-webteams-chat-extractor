@@ -190,21 +190,21 @@ document.addEventListener('DOMContentLoaded', function () {
 		chrome.runtime.sendMessage({ action: 'DOWNLOAD_ZIP' }, function(response) {
 			if (response && response.base64) {
 				debugLog('Popup received ZIP data (Base64), starting local download.');
-				// Convert Base64 to Blob
-				var binaryString = atob(response.base64);
-				var bytes = new Uint8Array(binaryString.length);
-				for (var i = 0; i < binaryString.length; i++) {
-					bytes[i] = binaryString.charCodeAt(i);
-				}
-				var blob = new Blob([bytes], { type: 'application/zip' });
 				
-				var url = URL.createObjectURL(blob);
-				var a = document.createElement('a');
-				a.href = url;
-				a.download = response.filename;
-				a.click();
-				URL.revokeObjectURL(url);
-				showToast('Downloaded!');
+				// Use the Chrome Downloads API instead of anchor click to prevent auto-opening
+				chrome.downloads.download({
+					url: 'data:application/zip;base64,' + response.base64,
+					filename: response.filename,
+					conflictAction: 'uniquify',
+					saveAs: false // False to prevent opening a Save As dialog
+				}, function(downloadId) {
+					if (chrome.runtime.lastError) {
+						console.error('Download failed:', chrome.runtime.lastError);
+					} else {
+						debugLog('Download started with ID:', downloadId);
+						showToast('Downloaded!');
+					}
+				});
 			} else if (response && response.error) {
 				console.error('ZIP generation failed on background:', response.error);
 				alert('ZIP generation failed: ' + response.error);

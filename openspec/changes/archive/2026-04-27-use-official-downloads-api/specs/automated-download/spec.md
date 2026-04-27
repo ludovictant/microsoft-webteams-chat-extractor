@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Trigger download upon completion
 The system SHALL automatically initiate the ZIP download process using the official **Chrome Downloads API** as soon as the background script transitions to the 'ready' state.
@@ -9,10 +9,3 @@ The system SHALL automatically initiate the ZIP download process using the offic
 - **THEN** the popup SHALL automatically trigger the `DOWNLOAD_ZIP` request.
 - **AND** the system SHALL use `chrome.downloads.download` to save the file locally without automatically opening it.
 - **NOTE**: Actual auto-opening behavior is subject to user-level Chrome settings and may not be entirely preventable via extension code.
-
-### Requirement: Prevent multiple auto-downloads
-The system SHALL ensure that an automatic download is only triggered once per extraction session.
-
-#### Scenario: Single auto-download trigger
-- **WHEN** an auto-download has been successfully initiated
-- **THEN** the system SHALL mark the session as 'downloaded' to prevent redundant download triggers during subsequent status polls.
