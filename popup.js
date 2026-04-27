@@ -3,12 +3,12 @@ document.addEventListener('DOMContentLoaded', function () {
 	var statusDiv = document.getElementById('status');
 	var rangeText = document.getElementById('rangeText');
 	var progressText = document.getElementById('progressText');
-	var stopBtn = document.getElementById('stopBtn');
-	var resumeBtn = document.getElementById('resumeBtn');
+	var stopAndExportBtn = document.getElementById('stopAndExportBtn');
+	var resumeExtractionBtn = document.getElementById('resumeExtractionBtn');
 	var finalActionsDiv = document.getElementById('finalActions');
 	var finalMsg = document.getElementById('finalMsg');
 	var downloadZipBtn = document.getElementById('downloadZipBtn');
-	var resetBtn = document.getElementById('resetBtn');
+	var startNewExtractionBtn = document.getElementById('startNewExtractionBtn');
 	var toast = document.getElementById('toast');
 	var progressBarContainer = document.getElementById('progressBarContainer');
 	var progressBar = document.getElementById('progressBar');
@@ -67,14 +67,15 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			autoDownloadTriggered = false; // Reset flag for next run
 			if (statusNudge) statusNudge.innerHTML = '';
-			if (resumeBtn) resumeBtn.style.display = 'none';
+			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
 			if (disclaimerBox) disclaimerBox.style.display = 'none';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 		} else if (data.status === 'extracting') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
-			if (resumeBtn) resumeBtn.style.display = 'none';
-			if (stopBtn) stopBtn.textContent = 'Stop and Export';
+			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
@@ -111,8 +112,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
-			if (resumeBtn) resumeBtn.style.display = 'block';
-			if (stopBtn) stopBtn.textContent = 'Stop and Export';
+			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'block';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
@@ -128,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
-			if (stopBtn) stopBtn.textContent = 'Stop and Export';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			rangeText.textContent = 'Processing chat data\u2026';
@@ -161,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			progressText.innerHTML = '<span style="color:red;">' + data.error + '</span>';
-			stopBtn.textContent = 'Restart';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Restart';
 			if (disclaimerBox) disclaimerBox.style.display = 'none';
 		}
 	}
@@ -255,8 +256,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	});
 
 	// Handle manual resume button
-	if (resumeBtn) {
-		resumeBtn.addEventListener('click', function() {
+	if (resumeExtractionBtn) {
+		resumeExtractionBtn.addEventListener('click', function() {
 			debugLog('Popup: Manual resume clicked.');
 			chrome.runtime.sendMessage({ action: 'FORCE_RESUME' });
 		});
@@ -268,36 +269,40 @@ document.addEventListener('DOMContentLoaded', function () {
 	});
 
 	// Handle reset button
-	resetBtn.addEventListener('click', function() {
-		debugLog('Popup reset button clicked.');
-		chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
-			pollStatus();
+	if (startNewExtractionBtn) {
+		startNewExtractionBtn.addEventListener('click', function() {
+			debugLog('Popup reset button clicked.');
+			chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+				pollStatus();
+			});
 		});
-	});
+	}
 
 	// Handle stop button
-	stopBtn.addEventListener('click', async function() {
-		debugLog('Popup stop button clicked.');
-		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, async function(data) {
-			if (data && data.status === 'error') {
-				debugLog('Popup resetting after error.');
-				chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
-					pollStatus();
-				});
-				return;
-			}
-			
-			if (data && (data.status === 'processing' || data.status === 'stuck')) {
-				debugLog('Popup sending FORCE_STOP_PROCESSING to background.');
-				chrome.runtime.sendMessage({ action: 'FORCE_STOP_PROCESSING' }, function(response) {
-					debugLog('Force stop processing signal confirmed by background.');
-				});
-			} else {
-				debugLog('Popup sending STOP_EXTRACTION to background.');
-				chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
-					debugLog('Stop signal confirmed by background.');
-				});
-			}
+	if (stopAndExportBtn) {
+		stopAndExportBtn.addEventListener('click', async function() {
+			debugLog('Popup stop button clicked.');
+			chrome.runtime.sendMessage({ action: 'GET_STATUS' }, async function(data) {
+				if (data && data.status === 'error') {
+					debugLog('Popup resetting after error.');
+					chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+						pollStatus();
+					});
+					return;
+				}
+				
+				if (data && (data.status === 'processing' || data.status === 'stuck')) {
+					debugLog('Popup sending FORCE_STOP_PROCESSING to background.');
+					chrome.runtime.sendMessage({ action: 'FORCE_STOP_PROCESSING' }, function(response) {
+						debugLog('Force stop processing signal confirmed by background.');
+					});
+				} else {
+					debugLog('Popup sending STOP_EXTRACTION to background.');
+					chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
+						debugLog('Stop signal confirmed by background.');
+					});
+				}
+			});
 		});
-	});
+	}
 });

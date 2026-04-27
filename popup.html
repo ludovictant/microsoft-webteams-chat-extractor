@@ -193,8 +193,8 @@
 			margin-bottom: 10px;
 		}
 
-		#downloadZipBtn {
-			background: #6264a7;
+		/* ---- Unified Button Styling ---- */
+		#downloadZipBtn, #startNewExtractionBtn, #stopAndExportBtn, #resumeExtractionBtn {
 			color: white;
 			border: none;
 			padding: 12px 24px;
@@ -206,20 +206,45 @@
 			align-items: center;
 			justify-content: center;
 			gap: 8px;
+			width: 100%;
 			margin: 0 auto;
-			transition: background 0.15s;
+			transition: all 0.15s;
+		}
+
+		#downloadZipBtn {
+			background: #6264a7;
 		}
 
 		#downloadZipBtn:hover {
 			background: #7b7db7;
 		}
 
-		#downloadZipBtn svg {
+		#startNewExtractionBtn, #resumeExtractionBtn {
+			background: #43a047;
+		}
+
+		#startNewExtractionBtn:hover, #resumeExtractionBtn:hover {
+			background: #4caf50;
+		}
+
+		#stopAndExportBtn {
+			background: #d32f2f;
+		}
+
+		#stopAndExportBtn:hover {
+			background: #e53935;
+		}
+
+		#downloadZipBtn:active, #startNewExtractionBtn:active, #stopAndExportBtn:active, #resumeExtractionBtn:active {
+			transform: scale(0.98);
+		}
+
+		#downloadZipBtn svg, #startNewExtractionBtn svg, #stopAndExportBtn svg, #resumeExtractionBtn svg {
 			width: 18px;
 			height: 18px;
 			fill: none;
 			stroke: currentColor;
-			stroke-width: 2;
+			stroke-width: 2.5;
 			stroke-linecap: round;
 			stroke-linejoin: round;
 		}
@@ -362,8 +387,8 @@
 		<p id="progressText" style="margin-bottom: 8px;">Loading...</p>
 		<div id="statusNudge" style="margin-bottom: 12px; font-size: 13px; min-height: 1.4em;"></div>
 		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
-			<button id="resumeBtn" style="display: none; background: #43a047; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Resume Manually</button>
-			<button id="stopBtn" style="background: #d32f2f; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Stop Extraction</button>
+			<button id="resumeExtractionBtn" style="display: none;">Resume Manually</button>
+			<button id="stopAndExportBtn">Stop Extraction</button>
 		</div>
 		<div id="disclaimerBox">
 			<p><strong style="color: #f9a825;">(!) Important:</strong> Do not switch conversations in the Teams window while the extraction is running.</p>
@@ -379,7 +404,8 @@
 				<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 				Download Archive (ZIP)
 			</button>
-			<button id="resetBtn" style="background: transparent; color: #8888a8; border: 1px solid #3a3a52; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s;">
+			<button id="startNewExtractionBtn">
+				<svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
 				Start New Extraction
 			</button>
 		</div>
