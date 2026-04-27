@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var dateDepth = document.getElementById('dateDepth');
 	var debugToggle = document.getElementById('debugToggle');
 	var statusNudge = document.getElementById('statusNudge');
+	var disclaimerBox = document.getElementById('disclaimerBox');
 	
 	var activeTabId = null;
 	var pollingInterval = null;
@@ -67,12 +68,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			autoDownloadTriggered = false; // Reset flag for next run
 			if (statusNudge) statusNudge.innerHTML = '';
 			if (resumeBtn) resumeBtn.style.display = 'none';
+			if (disclaimerBox) disclaimerBox.style.display = 'none';
 		} else if (data.status === 'extracting') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeBtn) resumeBtn.style.display = 'none';
 			if (stopBtn) stopBtn.textContent = 'Stop Extraction then Export';
+			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			
@@ -110,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			if (resumeBtn) resumeBtn.style.display = 'block';
 			if (stopBtn) stopBtn.textContent = 'Stop and Export';
+			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
@@ -125,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (stopBtn) stopBtn.textContent = 'Force Stop and Export';
+			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			rangeText.textContent = 'Processing chat data\u2026';
 			progressBar.classList.remove('indeterminate');
@@ -144,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'block';
 			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
+			if (disclaimerBox) disclaimerBox.style.display = 'none';
 			
 			// Auto-download logic
 			if (!autoDownloadTriggered) {
@@ -156,6 +162,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			progressText.innerHTML = '<span style="color:red;">' + data.error + '</span>';
 			stopBtn.textContent = 'Restart';
+			if (disclaimerBox) disclaimerBox.style.display = 'none';
 		}
 	}
 

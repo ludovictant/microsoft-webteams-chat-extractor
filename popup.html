@@ -297,6 +297,33 @@
 		input:checked + .slider:before {
 			transform: translateX(14px);
 		}
+
+		/* ---- Disclaimer ---- */
+		#disclaimerBox {
+			margin-top: 24px;
+			padding: 12px;
+			background: #161622;
+			border-radius: 8px;
+			border: 1px solid #3a3a52;
+			border-left: 4px solid #f9a825;
+			text-align: left;
+			display: none;
+		}
+
+		#disclaimerBox p {
+			font-size: 13px;
+			color: #ffffff;
+			margin-bottom: 8px;
+			line-height: 1.4;
+		}
+
+		#disclaimerBox p:last-child {
+			margin-bottom: 0;
+		}
+
+		#disclaimerBox strong {
+			color: #fff;
+		}
 	</style>
 </head>
 
@@ -337,6 +364,10 @@
 		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
 			<button id="resumeBtn" style="display: none; background: #43a047; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Resume Manually</button>
 			<button id="stopBtn" style="background: #d32f2f; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Stop Extraction</button>
+		</div>
+		<div id="disclaimerBox">
+			<p><strong style="color: #f9a825;">(!) Important:</strong> Do not switch conversations in the Teams window while the extraction is running.</p>
+			<p>If the progress "rebounds" at the oldest message, simply click <strong>Stop Extraction then Export</strong> to finish.</p>
 		</div>
 	</div>
 

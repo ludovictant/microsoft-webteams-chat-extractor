@@ -551,12 +551,12 @@
             if (!changed && !forceResumeRequested) {
               noChangeCount++;
               
-              if (noChangeCount === 3) {
+              if (noChangeCount === 15) {
                 console.log('[STUCK] No new content found for a while. Please manually scroll up in the Teams window to load more history.');
                 sendToBackground('STATUS_UPDATE', { status: 'stuck' });
               }
 
-              if (noChangeCount >= 3) {
+              if (noChangeCount >= 15) {
                 waitTime = 5000; // Poll less frequently while waiting for user
               } else {
                 // Progressively wait longer if we seem stuck
