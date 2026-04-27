@@ -194,11 +194,51 @@ function renderCSV() {
   return csv;
 }
 
+function renderJSON() {
+  const version = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : 'unknown';
+  
+  const exportData = {
+    title: extractionData.title,
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      version: version,
+      totalMessages: extractionData.messages.length
+    },
+    messages: extractionData.messages.map(msg => {
+      let content = msg.type === 'system' ? msg.content : msg.htmlContent;
+      
+      // Resolve image placeholders to local filenames
+      if (msg.images && msg.images.length > 0) {
+        msg.images.forEach(img => {
+          const placeholder = `##${img.id}##`;
+          content = content.split(placeholder).join(`images/${img.localFilename}`);
+        });
+      }
+
+      return {
+        id: msg.id,
+        type: msg.type || 'message',
+        timestamp: new Date(msg.timestamp).toISOString(),
+        author: msg.author,
+        content: content,
+        reactions: msg.reactions || [],
+        images: (msg.images || []).map(img => ({
+          url: img.url,
+          localFilename: img.localFilename
+        }))
+      };
+    })
+  };
+
+  return JSON.stringify(exportData, null, 2);
+}
+
 async function generateZip() {
   const zip = new JSZip();
   zip.file("index.html", renderHTML());
   zip.file("transcript.md", renderMarkdown());
   zip.file("transcript.csv", renderCSV());
+  zip.file("transcript.json", renderJSON());
 
   const imgFolder = zip.folder("images");
   const writtenFiles = new Set();
