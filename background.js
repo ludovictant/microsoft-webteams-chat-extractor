@@ -338,6 +338,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true });
       break;
 
+    case 'STATUS_UPDATE':
+      extractionData.status = message.status;
+      debugLog('Status updated to:', message.status);
+      sendResponse({ ok: true });
+      break;
+
+    case 'FORCE_RESUME':
+      if (extractionData.activeTabId) {
+        chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'force_resume' });
+      }
+      sendResponse({ ok: true });
+      break;
+
     case 'FINISH_EXTRACTION':
       extractionData.messages.sort((a, b) => a.timestamp - b.timestamp);
       

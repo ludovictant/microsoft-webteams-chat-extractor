@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var rangeText = document.getElementById('rangeText');
 	var progressText = document.getElementById('progressText');
 	var stopBtn = document.getElementById('stopBtn');
+	var resumeBtn = document.getElementById('resumeBtn');
 	var finalActionsDiv = document.getElementById('finalActions');
 	var finalMsg = document.getElementById('finalMsg');
 	var downloadZipBtn = document.getElementById('downloadZipBtn');
@@ -13,11 +14,13 @@ document.addEventListener('DOMContentLoaded', function () {
 	var progressBar = document.getElementById('progressBar');
 	var dateDepth = document.getElementById('dateDepth');
 	var debugToggle = document.getElementById('debugToggle');
+	var statusNudge = document.getElementById('statusNudge');
 	
 	var activeTabId = null;
 	var pollingInterval = null;
 	var autoDownloadTriggered = false;
 	var currentDebugMode = false;
+	var resumeMessageTimeout = null;
 
 	function debugLog(...args) {
 		if (currentDebugMode) console.log('[DEBUG]', ...args);
@@ -62,12 +65,25 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'none';
 			autoDownloadTriggered = false; // Reset flag for next run
+			if (statusNudge) statusNudge.innerHTML = '';
+			if (resumeBtn) resumeBtn.style.display = 'none';
 		} else if (data.status === 'extracting') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
+			if (resumeBtn) resumeBtn.style.display = 'none';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
+			
+			// Clear stuck message if it was there, show resumed message
+			if (statusNudge && statusNudge.dataset.status === 'stuck') {
+				statusNudge.dataset.status = 'extracting';
+				statusNudge.innerHTML = '<span style="color: #43a047; font-weight: bold;">Extraction resumed automatically!</span>';
+				if (resumeMessageTimeout) clearTimeout(resumeMessageTimeout);
+				resumeMessageTimeout = setTimeout(function() {
+					statusNudge.innerHTML = '';
+				}, 10000);
+			}
 			if (data.oldestTS) {
 				var oldest = new Date(data.oldestTS);
 				dateDepth.style.display = 'block';
@@ -87,6 +103,21 @@ document.addEventListener('DOMContentLoaded', function () {
 					progressBarContainer.style.display = 'none';
 				}
 			}
+		} else if (data.status === 'stuck') {
+			optionsDiv.style.display = 'none';
+			statusDiv.style.display = 'block';
+			finalActionsDiv.style.display = 'none';
+			if (resumeBtn) resumeBtn.style.display = 'block';
+			
+			progressText.textContent = data.count + ' messages collected so far\u2026';
+			if (statusNudge) {
+				statusNudge.dataset.status = 'stuck';
+				statusNudge.innerHTML = '<span style="color: #d83b01; font-weight: bold;">Stuck! Please manually scroll up in the Teams chat window to load more history.</span>';
+			}
+			
+			dateDepth.style.display = 'block';
+			progressBarContainer.style.display = 'block';
+			progressBar.classList.add('indeterminate');
 		} else if (data.status === 'processing') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
@@ -212,6 +243,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			console.error('Extraction error:', err);
 		}
 	});
+
+	// Handle manual resume button
+	if (resumeBtn) {
+		resumeBtn.addEventListener('click', function() {
+			debugLog('Popup: Manual resume clicked.');
+			chrome.runtime.sendMessage({ action: 'FORCE_RESUME' });
+		});
+	}
 
 	// Handle download ZIP
 	downloadZipBtn.addEventListener('click', function() {

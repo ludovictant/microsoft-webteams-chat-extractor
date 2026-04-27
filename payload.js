@@ -4,6 +4,7 @@
   window._teamsExtractorLoaded = true;
 
   var stopRequested = false;
+  var forceResumeRequested = false;
   var heartbeatInterval = null;
   var currentDebugMode = false;
   var connectedUserName = null;
@@ -497,30 +498,48 @@
 
           var noChangeCount = 0;
           var prevOldest = null;
+          var waitTime = 2500;
           
           while (true) {
             if (stopRequested) break;
             
-            scrollContainer.scrollTop = 0;
-            list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', code: 'Home', bubbles: true, cancelable: true }));
-
-            await sleep(2500);
-            await collectAndSend();
-
-            var currentOldestTS = null;
-            // Since we don't store nodes anymore, we need a way to check cutoff
-            // The background script will handle the final trim, but we need to stop scrolling
-            // We'll use the oldest in the current batch or recently processed
+            // --- SAFE INCREMENTAL SCROLL (CRAWL UP) ---
+            // Instead of jumping to 0, we crawl up to ensure virtualized nodes render and trigger observer
+            var stepSize = 1500;
+            var safetyTimeout = 2000;
             
-            if (cutoffDate) {
-              // This is a bit tricky now. Let's send the oldest TS seen so far to background
-              // and let it decide or we keep track of global oldest here.
+            while (scrollContainer.scrollTop > 0) {
+              if (stopRequested) break;
+              var targetScroll = Math.max(0, scrollContainer.scrollTop - stepSize);
+              debugLog('Crawling up to:', targetScroll);
+              
+              var domChanged = false;
+              var tempObs = new MutationObserver(function() { domChanged = true; });
+              tempObs.observe(list, { childList: true, subtree: true });
+
+              scrollContainer.scrollTop = targetScroll;
+
+              // Wait for DOM change OR timeout
+              var startTime = Date.now();
+              while (!domChanged && (Date.now() - startTime < safetyTimeout)) {
+                await sleep(50);
+              }
+              tempObs.disconnect();
+              
+              await collectAndSend();
+              if (scrollContainer.scrollTop === 0) break;
             }
 
-            // For simplicity in this refactor, I'll keep a simple global oldest TS
-            // (Note: getTimestamp is still available)
+            // Final trigger for server-side loading (only when at 0)
+            list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', code: 'Home', bubbles: true, cancelable: true }));
+
+            await sleep(waitTime);
+            await collectAndSend();
+
+            // Use unified selector for identifying messages (matching collectAndSend logic)
+            var messageSelector = '[data-tid="channel-pane-message"], [id^="reply-chain-summary-"], .fui-ChatControlMessageItem, [data-tid="control-message-renderer"]';
             var currentOldest = null;
-            nodes = (list.id === 'chat-pane-list') ? Array.from(list.children) : Array.from(list.querySelectorAll('[data-tid="channel-pane-message"]'));
+            nodes = (list.id === 'chat-pane-list') ? Array.from(list.children) : Array.from(list.querySelectorAll(messageSelector));
             nodes.forEach(n => {
               var ts = getTimestamp(n);
               if (ts && (!currentOldest || ts < currentOldest)) currentOldest = ts;
@@ -529,11 +548,32 @@
             if (cutoffDate && currentOldest && currentOldest <= cutoffDate) break;
 
             var changed = !prevOldest || !currentOldest || currentOldest.getTime() !== prevOldest.getTime();
-            if (!changed) {
+            if (!changed && !forceResumeRequested) {
               noChangeCount++;
-              if (noChangeCount >= 5) break;
+              
+              if (noChangeCount === 3) {
+                console.log('[STUCK] No new content found for a while. Please manually scroll up in the Teams window to load more history.');
+                sendToBackground('STATUS_UPDATE', { status: 'stuck' });
+              }
+
+              if (noChangeCount >= 3) {
+                waitTime = 5000; // Poll less frequently while waiting for user
+              } else {
+                // Progressively wait longer if we seem stuck
+                waitTime = Math.min(6000, 2500 + (noChangeCount * 500));
+                console.log(`[WAITING] No new content found in view (${noChangeCount}/15 before stuck alert). Retrying in ${waitTime}ms...`);
+              }
             } else {
+              if (forceResumeRequested) {
+                console.log('[MANUAL RESUME] Forcing extraction to continue.');
+                sendToBackground('STATUS_UPDATE', { status: 'extracting' });
+              } else if (noChangeCount >= 3) {
+                console.log('[RESUMED] New content detected, continuing extraction.');
+                sendToBackground('STATUS_UPDATE', { status: 'extracting' });
+              }
               noChangeCount = 0;
+              forceResumeRequested = false; // Reset flag
+              waitTime = 2500; // Reset wait time on success
             }
             prevOldest = currentOldest;
             
@@ -567,6 +607,9 @@
     } else if (message.action === 'stop') {
       stopRequested = true;
       sendResponse({ status: 'stopping' });
+    } else if (message.action === 'force_resume') {
+      forceResumeRequested = true;
+      sendResponse({ status: 'resuming' });
     }
     return false;
   });

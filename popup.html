@@ -332,8 +332,12 @@
 			<div id="progressBar" class="progress-bar"></div>
 		</div>
 		<p id="dateDepth"></p>
-		<p id="progressText" style="margin-bottom: 16px;">Loading...</p>
-		<button id="stopBtn" style="background: #d32f2f; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Stop Extraction</button>
+		<p id="progressText" style="margin-bottom: 8px;">Loading...</p>
+		<div id="statusNudge" style="margin-bottom: 12px; font-size: 13px; min-height: 1.4em;"></div>
+		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
+			<button id="resumeBtn" style="display: none; background: #43a047; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Resume Manually</button>
+			<button id="stopBtn" style="background: #d32f2f; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Stop Extraction</button>
+		</div>
 	</div>
 
 	<div id="finalActions" style="display:none;">
