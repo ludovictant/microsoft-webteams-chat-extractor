@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeBtn) resumeBtn.style.display = 'none';
-			if (stopBtn) stopBtn.textContent = 'Stop Extraction then Export';
+			if (stopBtn) stopBtn.textContent = 'Stop and Export';
 			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
-			if (stopBtn) stopBtn.textContent = 'Force Stop and Export';
+			if (stopBtn) stopBtn.textContent = 'Stop and Export';
 			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			rangeText.textContent = 'Processing chat data\u2026';
