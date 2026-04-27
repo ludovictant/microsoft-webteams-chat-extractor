@@ -13,12 +13,22 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 - **Multi-Format Archive**: Generates a comprehensive **ZIP archive** containing:
   - **HTML**: A rich, Teams-like view with local image links.
   - **Markdown**: A clean text version for documentation.
-  - **CSV**: A data-ready format for spreadsheets (Date, Author, Content).
-- **Local Assets**: All images and avatars are downloaded as binary files into an `images/` folder within the ZIP, ensuring perfect offline viewing without Base64 bloat.
-- **Background Pipeline**: Uses a robust Service Worker architecture to handle large chat histories (5,000+ messages) without crashing the tab or losing data.
-- **Real-time Progress**: Visual progress bar and "date depth" indicator show exactly how far back the scanner has reached.
-- **Automated Workflow**: Automatically triggers the download once processing is complete and allows immediate "Reset" to start a new extraction.
+  - **CSV**: A data-ready format for spreadsheets.
+  - **JSON**: A structured, machine-readable format with resolved image paths for deep analysis.
+- **System Message Extraction**: Correctly identifies and renders membership changes (e.g., "User added User") with dedicated icons and styling.
+- **Message Reactions**: Robustly extracts emoji types and counts for all reactions, including your own messages.
+- **Local Assets**: All images and avatars (including the connected user's profile) are downloaded as binary files into an `images/` folder within the ZIP, ensuring perfect offline viewing.
+- **Background Pipeline**: Uses a high-performance Service Worker architecture to handle massive chat histories (5,000+ messages) without crashing the tab.
+- **Resilient Scrolling**:
+  - **Incremental Crawling**: Prevents skipping messages in virtualized lists by crawling up pixel-by-pixel.
+  - **Adaptive Throttling**: Automatically adjusts wait times to handle slow Teams servers during multi-year extractions.
+  - **Manual Scroll Assist**: Detects if Teams is "stuck" and prompts the user to manually nudge the scroll to continue.
+- **Real-time Progress**: Visual progress bar and detailed "date depth" indicator (including the year) show exactly how far back the scanner has reached.
+- **Flexible Controls**:
+  - **Force Stop & Export**: Immediately export all collected data even if the extraction is stalled or processing assets.
+  - **Automated Workflow**: Triggers the download once complete and allows immediate "Reset" to start a new session.
 - **Privacy First**: No data leaves your browser. All extraction and file generation happens locally.
+- **Developer Tools**: Integrated **Debug Mode** for verbose logging and attribute preservation during troubleshooting.
 
 ## Installation
 
@@ -43,12 +53,13 @@ The extension uses a high-performance **data pipeline** between the page and a b
 
 1. **Detection**: Dynamically identifies the conversation type and locates the message container.
 2. **Initial Sync**: Automatically scrolls to the absolute bottom of the chat first to ensure the capture starts with the most recent messages.
-3. **Batched Extraction**: As it scrolls up, the content script extracts lightweight JSON data and streams it in batches of 10 to a persistent **Service Worker**. This keeps memory usage low even for massive chats.
-4. **Background Asset Processing**:
+3. **Safe Traversal**: Uses an incremental "crawl" logic to ensure Teams' virtualized list renders every single message, while a `MutationObserver` captures newly appeared nodes.
+4. **Batched Extraction**: Extracts structured JSON data and streams it in batches to a persistent **Service Worker** to keep memory usage low.
+5. **Background Asset Processing**:
    - The content script fetches images and avatars directly from the authenticated page context to bypass CORS/Auth restrictions.
    - Assets are sent as binary chunks to the Service Worker.
    - Uses deterministic, sanitized naming: `avatar_Author.png` and `msg_YYYYmmDD.HHMMSS_ID.png`.
-5. **Finalization**: The Service Worker uses **JSZip** to package the HTML, Markdown, and CSV files along with the `images/` folder into a single archive.
+6. **Finalization**: The Service Worker uses **JSZip** to package the HTML, Markdown, CSV, and JSON files along with the `images/` folder into a single archive.
 
 ## Permissions
 
