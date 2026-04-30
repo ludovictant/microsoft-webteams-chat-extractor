@@ -407,6 +407,37 @@
     };
   }
 
+  // Helper to extract the chat title with multiple fallbacks
+  function getChatTitle() {
+    // 1. Try DOM selectors for the active chat header
+    var selectors = [
+      '[data-tid="channelTitle-text"]',
+      '[data-tid="active-chat-title"]',
+      '[data-tid="chat-list-item"] [data-tid="chat-title"]'
+    ];
+    
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el && el.innerText.trim()) {
+        var text = el.innerText.trim();
+        debugLog('Title extracted from DOM selector (' + selectors[i] + '):', text);
+        return text;
+      }
+    }
+
+    // 2. Fallback to document title with aggressive cleaning
+    var rawTitle = document.title;
+    var cleanedTitle = rawTitle
+      .replace(/^\(\d+\)\s*/, '')               // Remove notification count (e.g., "(1) ")
+      .replace(/^Conversation\s*\|\s*/i, '')    // Remove "Conversation | " prefix
+      .replace(/\s*\|\s*Microsoft Teams$/i, '') // Remove Teams suffix
+      .trim();
+
+    debugLog('Title extracted from document.title:', { rawTitle, cleanedTitle });
+    
+    return cleanedTitle || 'teams-chat';
+  }
+
   // ---- Main extraction routine ----
   async function scrollAndExtract(days, sort) {
     stopRequested = false;
@@ -427,8 +458,7 @@
       var processedIds = new Set();
       var batchBuffer = [];
 
-      var domTitle = document.querySelector('[data-tid="channelTitle-text"], [data-tid="active-chat-title"]');
-      var chatTitle = domTitle ? domTitle.innerText.trim() : document.title.replace(/^\(.*\)\s*/, '').replace(/\s*\|\s*Microsoft Teams$/, '').trim() || 'teams-chat';
+      var chatTitle = getChatTitle();
 
       sendToBackground('START_EXTRACTION', { title: chatTitle, days: days });
 
