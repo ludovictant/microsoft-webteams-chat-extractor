@@ -281,6 +281,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   switch (message.action) {
     case 'START_EXTRACTION':
+      if (extractionData.status !== 'idle') {
+        console.log('[CONCURRENCY] Extraction already in progress. Ignoring start request.');
+        sendResponse({ status: 'error', error: 'ALREADY_RUNNING' });
+        return;
+      }
       debugLog('Starting extraction for:', message.title);
       extractionData = {
         title: message.title,

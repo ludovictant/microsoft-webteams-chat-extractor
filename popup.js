@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
 	var optionsDiv = document.getElementById('options');
 	var statusDiv = document.getElementById('status');
+	var activeChatName = document.getElementById('activeChatName');
 	var rangeText = document.getElementById('rangeText');
 	var progressText = document.getElementById('progressText');
 	var stopAndExportBtn = document.getElementById('stopAndExportBtn');
@@ -20,6 +21,12 @@ document.addEventListener('DOMContentLoaded', function () {
 	
 	var activeTabId = null;
 	var pollingInterval = null;
+
+	// Query current tab ID on startup
+	chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+		if (tabs && tabs[0]) activeTabId = tabs[0].id;
+	});
+
 	var autoDownloadTriggered = false;
 	var isProcessingRequest = false;
 	var currentDebugMode = false;
@@ -63,6 +70,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function updateUI(data) {
 		debugLog('Updating UI with state:', data.status, data);
+
+		// Multi-tab concurrency check: is the active extraction in a DIFFERENT tab?
+		// 1. data.status !== 'idle': Something is happening in the background
+		// 2. activeTabId !== null: This popup successfully identified its current tab
+		// 3. data.activeTabId !== null: The background has a recorded tab for the current task
+		// 4. activeTabId !== data.activeTabId: The IDs don't match -> current tab is NOT the owner
+		var isAnotherTabBusy = data.status !== 'idle' && activeTabId !== null && data.activeTabId !== null && activeTabId !== data.activeTabId;
+
 		if (data.status === 'idle') {
 			optionsDiv.style.display = 'block';
 			statusDiv.style.display = 'none';
@@ -70,10 +85,18 @@ document.addEventListener('DOMContentLoaded', function () {
 			autoDownloadTriggered = false; // Reset flag for next run
 			isProcessingRequest = false;   // Reset request lock
 			
-			// Re-enable all trigger buttons
-			optionsDiv.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+			// Re-enable trigger buttons only if no other tab is busy
+			optionsDiv.querySelectorAll('button').forEach(function(b) { 
+				b.disabled = isAnotherTabBusy; 
+			});
 
-			if (statusNudge) statusNudge.innerHTML = '';
+			if (statusNudge) {
+				if (isAnotherTabBusy) {
+					statusNudge.innerHTML = '<div><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is already active in another tab. You can monitor its progress here, but you cannot start a new one until it finishes.</span></div>';
+				} else {
+					statusNudge.innerHTML = '';
+				}
+			}
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
 			
 			// Reset download button
@@ -89,16 +112,21 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
+			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			
 			// Clear stuck message if it was there, show resumed message
-			if (statusNudge && statusNudge.dataset.status === 'stuck') {
-				statusNudge.dataset.status = 'extracting';
-				statusNudge.innerHTML = '<div><strong style="color: #43a047;">(!) Success:</strong> Extraction resumed successfully!</div>';
-				if (resumeMessageTimeout) clearTimeout(resumeMessageTimeout);
-				resumeMessageTimeout = setTimeout(function() {
-					statusNudge.innerHTML = '';
-				}, 10000);
+			if (statusNudge) {
+				if (isAnotherTabBusy) {
+					statusNudge.innerHTML = '<div><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is active in another tab.</span></div>';
+				} else if (statusNudge.dataset.status === 'stuck') {
+					statusNudge.dataset.status = 'extracting';
+					statusNudge.innerHTML = '<div><strong style="color: #43a047;">(!) Success:</strong> Extraction resumed successfully!</div>';
+					if (resumeMessageTimeout) clearTimeout(resumeMessageTimeout);
+					resumeMessageTimeout = setTimeout(function() {
+						statusNudge.innerHTML = '';
+					}, 10000);
+				}
 			}
 			if (data.oldestTS) {
 				var oldest = new Date(data.oldestTS);
@@ -127,6 +155,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
+			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
 				statusNudge.dataset.status = 'stuck';
@@ -145,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
+			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
 			rangeText.textContent = 'Processing chat data\u2026';
 			progressBar.classList.remove('indeterminate');
 			progressBarContainer.style.display = 'block';

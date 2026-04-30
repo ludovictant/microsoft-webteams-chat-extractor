@@ -388,6 +388,8 @@
 		<p>If the progress "rebounds" at the oldest message, simply click <strong>Stop and Export</strong> to finish.</p>
 	</div>
 
+	<div id="statusNudge" style="margin: 0 16px 16px 16px; font-size: 13px; min-height: 1.4em;"></div>
+
 	<div id="options">
 		<div style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px; margin-bottom: 16px;">
 			<span style="font-size: 13px; color: #e0e0e0;">Debug Mode</span>
@@ -407,13 +409,13 @@
 
 	<div id="status" style="display:none;">
 		<div class="spinner"></div>
-		<p id="rangeText" style="font-weight: 600; color: #fff; margin-bottom: 4px;"></p>
+		<p id="activeChatName" style="font-weight: 600; color: #fff; margin-bottom: 4px;"></p>
+		<p id="rangeText" style="color: #8888a8; font-size: 13px; margin-bottom: 4px;"></p>
 		<div id="progressBarContainer" class="progress-container">
 			<div id="progressBar" class="progress-bar"></div>
 		</div>
 		<p id="dateDepth"></p>
 		<p id="progressText" style="margin-bottom: 8px;">Loading...</p>
-		<div id="statusNudge" style="margin-bottom: 12px; font-size: 13px; min-height: 1.4em;"></div>
 		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
 			<button id="resumeExtractionBtn" style="display: none;">Resume Manually</button>
 			<button id="stopAndExportBtn">Stop and Export</button>
