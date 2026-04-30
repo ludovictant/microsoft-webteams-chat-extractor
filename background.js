@@ -303,7 +303,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'STOP_EXTRACTION':
       if (extractionData.activeTabId) {
         chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'stop' }).catch(() => {});
-        extractionData.status = 'idle';
+        // Transition to ready (or processing if assets are still being fetched)
+        extractionData.status = (extractionData.processedAssets < extractionData.totalAssets) ? 'processing' : 'ready';
+        debugLog('Extraction stopped by user. Transitioning status to:', extractionData.status);
       }
       sendResponse({ status: 'stopped' });
       break;

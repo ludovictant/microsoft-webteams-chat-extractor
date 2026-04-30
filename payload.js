@@ -614,15 +614,17 @@
         }
       }
 
-      // Final flush and complete only if we weren't stopped/aborted
+      // Final flush
+      if (batchBuffer.length > 0) {
+        sendToBackground('CHUNK_READY', { messages: batchBuffer });
+        batchBuffer = [];
+      }
+
+      // Complete only if we weren't stopped/aborted
       if (!stopRequested) {
-        if (batchBuffer.length > 0) {
-          sendToBackground('CHUNK_READY', { messages: batchBuffer });
-          batchBuffer = [];
-        }
         sendToBackground('FINISH_EXTRACTION', { sort: sort });
       } else {
-        debugLog('Extraction aborted by user signal, skipping final export.');
+        debugLog('Extraction stopped by user signal, background will handle transition.');
       }
 
     } catch (e) {
