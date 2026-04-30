@@ -318,14 +318,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'RESET_STATUS':
+      if (extractionData.activeTabId) {
+        chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'stop' }).catch(() => {});
+      }
       extractionData = {
         title: '',
         days: 0,
         startTime: null,
         activeTabId: null,
         messages: [],
-        urlToBlob: new Map(),
         authorToAvatarUrl: new Map(),
+        urlToBlob: new Map(),
         seenAssetUrls: new Set(),
         status: 'idle',
         count: 0,
@@ -333,7 +336,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         processedAssets: 0,
         totalAssets: 0
       };
-      debugLog('Background state reset to idle.');
+      debugLog('Background state reset to idle and stop signal sent.');
       sendResponse({ status: 'idle' });
       break;
 

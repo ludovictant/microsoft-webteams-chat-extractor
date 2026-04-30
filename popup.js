@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var progressText = document.getElementById('progressText');
 	var stopAndExportBtn = document.getElementById('stopAndExportBtn');
 	var resumeExtractionBtn = document.getElementById('resumeExtractionBtn');
+	var abortExtractionBtn = document.getElementById('abortExtractionBtn');
 	var finalActionsDiv = document.getElementById('finalActions');
 	var finalMsg = document.getElementById('finalMsg');
 	var downloadZipBtn = document.getElementById('downloadZipBtn');
@@ -74,6 +75,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
+			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			
@@ -111,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'block';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
+			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
@@ -128,6 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
+			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			rangeText.textContent = 'Processing chat data\u2026';
 			progressBar.classList.remove('indeterminate');
@@ -147,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'block';
 			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
+			if (abortExtractionBtn) abortExtractionBtn.style.display = 'none';
 			
 			// Auto-download logic
 			if (!autoDownloadTriggered) {
@@ -159,6 +164,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			progressText.innerHTML = '<span style="color:red;">' + data.error + '</span>';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Restart';
+			if (abortExtractionBtn) abortExtractionBtn.style.display = 'none';
 		}
 	}
 
@@ -199,6 +205,8 @@ document.addEventListener('DOMContentLoaded', function () {
 					} else {
 						debugLog('Download started with ID:', downloadId);
 						showToast('Downloaded!');
+						downloadZipBtn.disabled = true;
+						downloadZipBtn.textContent = 'Downloaded!';
 					}
 				});
 			} else if (response && response.error) {
@@ -255,6 +263,16 @@ document.addEventListener('DOMContentLoaded', function () {
 		resumeExtractionBtn.addEventListener('click', function() {
 			debugLog('Popup: Manual resume clicked.');
 			chrome.runtime.sendMessage({ action: 'FORCE_RESUME' });
+		});
+	}
+
+	// Handle abort button
+	if (abortExtractionBtn) {
+		abortExtractionBtn.addEventListener('click', function() {
+			debugLog('Popup abort button clicked.');
+			chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+				pollStatus();
+			});
 		});
 	}
 

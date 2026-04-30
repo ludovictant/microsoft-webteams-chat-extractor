@@ -43,3 +43,12 @@ The system SHALL use a consistent HTML structure and CSS styling for all tempora
 #### Scenario: Professional status alerts
 - **WHEN** a status alert is displayed in the popup
 - **THEN** it SHALL use standardized spacing, font-weight, and color coding (e.g., amber for stalls, green for success).
+
+### Requirement: Completion Action Deactivation
+The system SHALL deactivate the download button once a download has been successfully initiated to prevent redundant actions and clarify the completion state.
+
+#### Scenario: Deactivate download button
+- **WHEN** the user clicks the "Download Archive (ZIP)" button
+- **AND** the download process is successfully initiated via the browser
+- **THEN** the button SHALL be disabled.
+- **AND** its text SHALL change to "Downloaded!".

@@ -410,6 +410,7 @@
   // ---- Main extraction routine ----
   async function scrollAndExtract(days, sort) {
     stopRequested = false;
+    forceResumeRequested = false;
     fetchedAssets.clear();
     startHeartbeat();
     
@@ -583,16 +584,21 @@
         }
       }
 
-      // Final flush
-      if (batchBuffer.length > 0) {
-        sendToBackground('CHUNK_READY', { messages: batchBuffer });
-        batchBuffer = [];
+      // Final flush and complete only if we weren't stopped/aborted
+      if (!stopRequested) {
+        if (batchBuffer.length > 0) {
+          sendToBackground('CHUNK_READY', { messages: batchBuffer });
+          batchBuffer = [];
+        }
+        sendToBackground('FINISH_EXTRACTION', { sort: sort });
+      } else {
+        debugLog('Extraction aborted by user signal, skipping final export.');
       }
 
-      sendToBackground('FINISH_EXTRACTION', { sort: sort });
-
     } catch (e) {
-      sendToBackground('ERROR', { error: 'Extraction failed: ' + e.message });
+      if (!stopRequested) {
+        sendToBackground('ERROR', { error: 'Extraction failed: ' + e.message });
+      }
     } finally {
       stopHeartbeat();
     }

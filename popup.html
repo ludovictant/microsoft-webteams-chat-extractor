@@ -194,7 +194,7 @@
 		}
 
 		/* ---- Unified Button Styling ---- */
-		#downloadZipBtn, #startNewExtractionBtn, #stopAndExportBtn, #resumeExtractionBtn {
+		#downloadZipBtn, #startNewExtractionBtn, #stopAndExportBtn, #resumeExtractionBtn, #abortExtractionBtn {
 			color: white;
 			border: none;
 			padding: 12px 24px;
@@ -235,11 +235,23 @@
 			background: #e53935;
 		}
 
-		#downloadZipBtn:active, #startNewExtractionBtn:active, #stopAndExportBtn:active, #resumeExtractionBtn:active {
+		#abortExtractionBtn {
+			background: transparent;
+			color: #8888a8;
+			border: 1px solid #3a3a52;
+		}
+
+		#abortExtractionBtn:hover {
+			background: #2b2b3d;
+			color: #ffffff;
+			border-color: #4a4a62;
+		}
+
+		#downloadZipBtn:active, #startNewExtractionBtn:active, #stopAndExportBtn:active, #resumeExtractionBtn:active, #abortExtractionBtn:active {
 			transform: scale(0.98);
 		}
 
-		#downloadZipBtn svg, #startNewExtractionBtn svg, #stopAndExportBtn svg, #resumeExtractionBtn svg {
+		#downloadZipBtn svg, #startNewExtractionBtn svg, #stopAndExportBtn svg, #resumeExtractionBtn svg, #abortExtractionBtn svg {
 			width: 18px;
 			height: 18px;
 			fill: none;
@@ -388,7 +400,8 @@
 		<div id="statusNudge" style="margin-bottom: 12px; font-size: 13px; min-height: 1.4em;"></div>
 		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
 			<button id="resumeExtractionBtn" style="display: none;">Resume Manually</button>
-			<button id="stopAndExportBtn">Stop Extraction</button>
+			<button id="stopAndExportBtn">Stop and Export</button>
+			<button id="abortExtractionBtn" style="display: none;">Abort Extraction</button>
 		</div>
 	</div>
 

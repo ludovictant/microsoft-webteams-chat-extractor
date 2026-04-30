@@ -53,3 +53,13 @@ The system SHALL allow users to manually terminate the image processing phase or
 - **WHEN** the user clicks the "Stop and Export" button
 - **THEN** the system SHALL signal the content script to stop.
 - **AND** the system SHALL immediately transition to the `ready` state.
+
+### Requirement: Immediate Extraction Abort
+The system SHALL provide an "Abort Extraction" action that immediately terminates the extraction loop and resets the extension state to `idle` without triggering an export or finalization.
+
+#### Scenario: Abort during extraction
+- **WHEN** the extraction status is `extracting` or `stuck`
+- **AND** the user clicks the "Abort Extraction" button
+- **THEN** the background script SHALL signal the content script to stop.
+- **AND** the background script SHALL reset the extraction state to `idle`.
+- **AND** the popup SHALL return to the initial options panel.
