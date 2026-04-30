@@ -119,7 +119,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
 				statusNudge.dataset.status = 'stuck';
-				statusNudge.innerHTML = '<span style="color: #d83b01; font-weight: bold;">Stuck! Please manually scroll up in the Teams chat window to load more history.</span>';
+				statusNudge.innerHTML = '<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
+										'<div>If you think that some history remains, manually scroll up in Teams then click <strong>Resume Manually</strong>.</div>' +
+										'<div>Otherwise, click <strong>Stop and Export</strong> to finish.</div>';
 			}
 			
 			dateDepth.style.display = 'block';
