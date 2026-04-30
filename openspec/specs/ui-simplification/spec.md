@@ -8,34 +8,23 @@ The system SHALL exclusively produce message exports in chronological order (Old
 - **THEN** the messages in the resulting ZIP archive SHALL be sorted from oldest to newest.
 
 ### Requirement: Unified Extraction Interface
-The system SHALL remove the sort order selection from the user interface to provide a simpler and more consistent experience. Additionally, it SHALL remove the "Currently loaded messages" and "Last 24 hours" options from the time range selection.
+The system SHALL provide a simplified extraction interface by removing redundant labels and standardizing trigger options. Additionally, the operational disclaimer SHALL be positioned at the top of the interface for maximum visibility.
 
-#### Scenario: Removed short time ranges
+#### Scenario: Simplified extraction triggers
 - **WHEN** the extension popup is opened
-- **THEN** the user SHALL NOT see "Currently loaded messages" or "Last 24 hours" in the time range options.
-
-### Requirement: Extraction Process Disclaimer
-The popup SHALL display a persistent disclaimer while an extraction is active to provide critical operational guidance to the user.
-
-#### Scenario: Display disclaimer during extraction
-- **WHEN** the extraction status is `extracting`, `stuck`, or `processing`
-- **THEN** a disclaimer SHALL be visible with the following points:
-  1. Do not change the conversation in the Teams window.
-  2. If the process repeats the oldest message, use the Stop and Export button.
-
-### Requirement: Consistent Action Button Labeling
-The system SHALL use the consistent label "Stop and Export" for the primary control button during all active extraction phases to ensure user clarity.
-
-#### Scenario: Consistent label in all states
-- **WHEN** the extraction is in the `extracting`, `stuck`, or `processing` states
-- **THEN** the stop button SHALL display the text "Stop and Export".
+- **THEN** the extraction buttons SHALL be labeled: "Download last 7 days", "Download last 30 days", "Download last 3 months", and "Download all messages".
+- **AND** the "Time range" and "Settings" section labels SHALL NOT be displayed.
+- **AND** the "Important" disclaimer SHALL be visible at the top of the layout.
+- **AND** the disclaimer SHALL include a warning against using the tool simultaneously in different tabs or windows.
+- **AND** the Debug Mode switch SHALL be positioned below the disclaimer and above the extraction trigger buttons.
+- **AND** the header title SHALL be "MS Teams Chat Extractor".
 
 ### Requirement: Standardized Primary Button Styling
-The system SHALL ensure that all primary action buttons (including "Download", "Stop", and "Start New Extraction") share a consistent visual language to ensure they are easily identifiable as interactive elements.
+The system SHALL ensure that all primary action buttons (including extraction triggers, "Download ZIP", "Stop and Export", and "Start New Extraction") share a consistent visual language to ensure they are easily identifiable as interactive elements.
 
-#### Scenario: Reset button matches standard theme
-- **WHEN** the "Start New Extraction" button is displayed
-- **THEN** it SHALL have the same background color, border radius, and typography as other primary action buttons in the extension.
+#### Scenario: Extraction triggers match standard theme
+- **WHEN** the extraction trigger buttons are displayed in the options panel
+- **THEN** they SHALL have the same background color, border radius, and typography as other primary action buttons (e.g., green theme).
 
 ### Requirement: Standardized Status Nudge Formatting
 The system SHALL use a consistent HTML structure and CSS styling for all temporary status alerts (e.g., stalled, resumed) to ensure visual coherence.

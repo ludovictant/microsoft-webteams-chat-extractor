@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 <head>
-	<title>MS Teams Chat Transcript</title>
+	<title>MS Teams Chat Extractor</title>
 	<script src="popup.js"></script>
 	<style>
 		* {
@@ -64,21 +64,25 @@
 		#options button {
 			display: block;
 			width: 100%;
-			padding: 10px 14px;
-			border: 1px solid #3a3a52;
+			padding: 12px 14px;
+			border: none;
 			border-radius: 8px;
-			background: #2b2b3d;
-			color: #e0e0e0;
+			background: #43a047;
+			color: #fff;
 			font-size: 14px;
+			font-weight: 600;
 			font-family: inherit;
 			cursor: pointer;
-			text-align: left;
-			transition: background 0.15s, border-color 0.15s;
+			text-align: center;
+			transition: background 0.15s, transform 0.15s;
 		}
 
 		#options button:hover {
-			background: #35354d;
-			border-color: #6264a7;
+			background: #4caf50;
+		}
+
+		#options button:active {
+			transform: scale(0.98);
 		}
 
 		/* ---- Sort toggle ---- */
@@ -375,25 +379,29 @@
 <body>
 	<div class="header">
 		<img src="icons/chat-32.png" alt="">
-		<h1 id="title">Chat Transcript</h1>
+		<h1 id="title">MS Teams Chat Extractor</h1>
+	</div>
+
+	<div id="disclaimerBox">
+		<p><strong style="color: #f9a825;">(!) Important:</strong> <strong>Do not switch conversations or minimize the Teams window</strong> while the extraction is running (switching browser tabs is okay).</p>
+		<p><strong>Do not use this tool simultaneously in different tabs or windows.</strong></p>
+		<p>If the progress "rebounds" at the oldest message, simply click <strong>Stop and Export</strong> to finish.</p>
 	</div>
 
 	<div id="options">
-		<div class="section-label">Time range</div>
-		<div class="btn-group">
-			<button data-days="7">Last 7 days</button>
-			<button data-days="30">Last 30 days</button>
-			<button data-days="90">Last 3 months</button>
-			<button data-days="0">All messages</button>
-		</div>
-
-		<div class="section-label" style="margin-top: 16px;">Settings</div>
-		<div style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px;">
+		<div style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px; margin-bottom: 16px;">
 			<span style="font-size: 13px; color: #e0e0e0;">Debug Mode</span>
 			<label class="switch">
 				<input type="checkbox" id="debugToggle">
 				<span class="slider"></span>
 			</label>
+		</div>
+
+		<div class="btn-group">
+			<button data-days="7">Download last 7 days</button>
+			<button data-days="30">Download last 30 days</button>
+			<button data-days="90">Download last 3 months</button>
+			<button data-days="0">Download all messages</button>
 		</div>
 	</div>
 
@@ -426,11 +434,6 @@
 				Start New Extraction
 			</button>
 		</div>
-	</div>
-
-	<div id="disclaimerBox">
-		<p><strong style="color: #f9a825;">(!) Important:</strong> Do not switch conversations or minimize the Teams window while the extraction is running (switching browser tabs is okay).</p>
-		<p>If the progress "rebounds" at the oldest message, simply click <strong>Stop and Export</strong> to finish.</p>
 	</div>
 
 	<div id="toast" class="toast">Downloaded!</div>
