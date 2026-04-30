@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 			if (statusNudge) {
 				if (isAnotherTabBusy) {
-					statusNudge.innerHTML = '<div><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is already active in another tab. You can monitor its progress here, but you cannot start a new one until it finishes.</span></div>';
+					statusNudge.innerHTML = '<div style="margin-bottom: 16px;"><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is already active in another tab. You can monitor its progress here, but you cannot start a new one until it finishes.</span></div>';
 				} else {
 					statusNudge.innerHTML = '';
 				}
@@ -118,10 +118,10 @@ document.addEventListener('DOMContentLoaded', function () {
 			// Clear stuck message if it was there, show resumed message
 			if (statusNudge) {
 				if (isAnotherTabBusy) {
-					statusNudge.innerHTML = '<div><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is active in another tab.</span></div>';
+					statusNudge.innerHTML = '<div style="margin-bottom: 16px;"><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is active in another tab.</span></div>';
 				} else if (statusNudge.dataset.status === 'stuck') {
 					statusNudge.dataset.status = 'extracting';
-					statusNudge.innerHTML = '<div><strong style="color: #43a047;">(!) Success:</strong> Extraction resumed successfully!</div>';
+					statusNudge.innerHTML = '<div style="margin-bottom: 16px;"><strong style="color: #43a047;">(!) Success:</strong> Extraction resumed successfully!</div>';
 					if (resumeMessageTimeout) clearTimeout(resumeMessageTimeout);
 					resumeMessageTimeout = setTimeout(function() {
 						statusNudge.innerHTML = '';
@@ -159,9 +159,11 @@ document.addEventListener('DOMContentLoaded', function () {
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
 				statusNudge.dataset.status = 'stuck';
-				statusNudge.innerHTML = '<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
+				statusNudge.innerHTML = '<div style="margin-bottom: 16px;">' +
+										'<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
 										'<div>If you think that some history remains, manually scroll up in Teams then click <strong>Resume Manually</strong>.</div>' +
-										'<div>Otherwise, click <strong>Stop and Export</strong> to finish.</div>';
+										'<div>Otherwise, click <strong>Stop and Export</strong> to finish.</div>' +
+										'</div>';
 			}
 			
 			dateDepth.style.display = 'block';
