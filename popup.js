@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var activeTabId = null;
 	var pollingInterval = null;
 	var autoDownloadTriggered = false;
+	var isProcessingRequest = false;
 	var currentDebugMode = false;
 	var resumeMessageTimeout = null;
 
@@ -67,6 +68,11 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'none';
 			autoDownloadTriggered = false; // Reset flag for next run
+			isProcessingRequest = false;   // Reset request lock
+			
+			// Re-enable all trigger buttons
+			optionsDiv.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+
 			if (statusNudge) statusNudge.innerHTML = '';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
 			
@@ -231,37 +237,62 @@ document.addEventListener('DOMContentLoaded', function () {
 		var btn = e.target.closest('button');
 		if (!btn) return;
 
-		var days = parseInt(btn.dataset.days, 10);
-		var sort = 'oldest';
-		
-		var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-		var tab = tabs[0];
-		if (!tab) return;
-		activeTabId = tab.id;
-
-		try {
-			autoDownloadTriggered = false; // Reset flag
-			debugLog('Popup injecting payload.js into tab:', tab.id);
-			await chrome.scripting.executeScript({
-				target: { tabId: tab.id },
-				files: ['payload.js']
-			});
-			debugLog('Popup sending extract signal to tab:', tab.id, { days, sort });
-			
-			// Get current debug mode from storage to ensure it's up to date
-			chrome.storage.session.get(['debugMode'], async function(result) {
-				// Use !! to explicitly cast to boolean (handles undefined as false)
-				var debugMode = !!result.debugMode;
-				await chrome.tabs.sendMessage(tab.id, { 
-					action: 'extract', 
-					days: days, 
-					sort: sort,
-					debugMode: debugMode 
-				});
-			});
-		} catch (err) {
-			console.error('Extraction error:', err);
+		// Prevent concurrent requests
+		if (isProcessingRequest) {
+			console.log('[CONCURRENCY] Extraction already in progress. Ignoring concurrent request.');
+			return;
 		}
+
+		chrome.runtime.sendMessage({ action: 'GET_STATUS' }, async function(data) {
+			if (data && data.status !== 'idle') {
+				console.log('[CONCURRENCY] System status is ' + data.status + '. Ignoring start request.');
+				return;
+			}
+
+			isProcessingRequest = true;
+			
+			// Disable all trigger buttons immediately
+			var allBtns = optionsDiv.querySelectorAll('button');
+			allBtns.forEach(function(b) { b.disabled = true; });
+
+			var days = parseInt(btn.dataset.days, 10);
+			var sort = 'oldest';
+			
+			var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+			var tab = tabs[0];
+			if (!tab) {
+				isProcessingRequest = false;
+				allBtns.forEach(function(b) { b.disabled = false; });
+				return;
+			}
+			activeTabId = tab.id;
+
+			try {
+				autoDownloadTriggered = false; // Reset flag
+				debugLog('Popup injecting payload.js into tab:', tab.id);
+				await chrome.scripting.executeScript({
+					target: { tabId: tab.id },
+					files: ['payload.js']
+				});
+				debugLog('Popup sending extract signal to tab:', tab.id, { days, sort });
+				
+				// Get current debug mode from storage to ensure it's up to date
+				chrome.storage.session.get(['debugMode'], async function(result) {
+					// Use !! to explicitly cast to boolean (handles undefined as false)
+					var debugMode = !!result.debugMode;
+					await chrome.tabs.sendMessage(tab.id, { 
+						action: 'extract', 
+						days: days, 
+						sort: sort,
+						debugMode: debugMode 
+					});
+				});
+			} catch (err) {
+				console.error('Extraction error:', err);
+				isProcessingRequest = false;
+				allBtns.forEach(function(b) { b.disabled = false; });
+			}
+		});
 	});
 
 	// Handle manual resume button
