@@ -68,22 +68,19 @@ document.addEventListener('DOMContentLoaded', function () {
 			autoDownloadTriggered = false; // Reset flag for next run
 			if (statusNudge) statusNudge.innerHTML = '';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
-			if (disclaimerBox) disclaimerBox.style.display = 'none';
-			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
 		} else if (data.status === 'extracting') {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
-			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			
 			// Clear stuck message if it was there, show resumed message
 			if (statusNudge && statusNudge.dataset.status === 'stuck') {
 				statusNudge.dataset.status = 'extracting';
-				statusNudge.innerHTML = '<span style="color: #43a047; font-weight: bold;">Extraction resumed automatically!</span>';
+				statusNudge.innerHTML = '<div><strong style="color: #43a047;">(!) Success:</strong> Extraction resumed successfully!</div>';
 				if (resumeMessageTimeout) clearTimeout(resumeMessageTimeout);
 				resumeMessageTimeout = setTimeout(function() {
 					statusNudge.innerHTML = '';
@@ -114,7 +111,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'block';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
-			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			progressText.textContent = data.count + ' messages collected so far\u2026';
 			if (statusNudge) {
@@ -132,7 +128,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
-			if (disclaimerBox) disclaimerBox.style.display = 'block';
 			
 			rangeText.textContent = 'Processing chat data\u2026';
 			progressBar.classList.remove('indeterminate');
@@ -152,7 +147,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'block';
 			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
-			if (disclaimerBox) disclaimerBox.style.display = 'none';
 			
 			// Auto-download logic
 			if (!autoDownloadTriggered) {
@@ -165,7 +159,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			progressText.innerHTML = '<span style="color:red;">' + data.error + '</span>';
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Restart';
-			if (disclaimerBox) disclaimerBox.style.display = 'none';
 		}
 	}
 
