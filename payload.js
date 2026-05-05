@@ -75,21 +75,36 @@
     return null;
   }
 
-  // Standalone helper for timestamp
+  // Standalone helper for timestamp with improved grouping support
   function getTimestamp(node) {
-    // 1. Try standard Teams timestamp elements
-    var timeEl = node.querySelector('[id^="timestamp-"], [data-tid="message-timestamp"], [data-tid="control-message-timestamp"], time');
-    if (timeEl) {
-      var dt = timeEl.getAttribute('datetime') || timeEl.getAttribute('originalarrivaltime');
-      if (dt) return new Date(dt);
+    // 1. Try standard Teams timestamp elements on the node itself
+    var selectors = [
+      '[id^="timestamp-"]',
+      '[data-tid="message-timestamp"]',
+      '[data-tid="control-message-timestamp"]',
+      'time',
+      '[originalarrivaltime]'
+    ];
+    
+    for (var i = 0; i < selectors.length; i++) {
+      var el = node.querySelector(selectors[i]);
+      if (el) {
+        var dt = el.getAttribute('datetime') || el.getAttribute('originalarrivaltime') || el.getAttribute('content');
+        if (dt) return new Date(dt);
+      }
     }
     
-    // 2. Try the arrival time attribute directly on the node or descendants
-    var arrivalAttr = node.getAttribute('originalarrivaltime') || 
-                     (node.querySelector('[originalarrivaltime]') ? node.querySelector('[originalarrivaltime]').getAttribute('originalarrivaltime') : null);
-    if (arrivalAttr) return new Date(arrivalAttr);
+    // 2. Look UP for a group header or parent container that might have the time
+    var groupContainer = node.closest('[data-tid="chat-item"], [data-tid="message-pane-list-item"], .fui-ChatMyMessage, .fui-ChatMessage');
+    if (groupContainer) {
+       var groupTime = groupContainer.querySelector('[id^="timestamp-"], [data-tid*="timestamp"]');
+       if (groupTime) {
+         var dt = groupTime.getAttribute('datetime') || groupTime.getAttribute('originalarrivaltime');
+         if (dt) return new Date(dt);
+       }
+    }
 
-    // 3. Try to extract from data-mid or id (13-digit millisecond timestamp)
+    // 3. Fallback: Check data-mid or ID for 13-digit timestamp
     var mid = node.getAttribute('data-mid') || '';
     var nid = node.id || '';
     var idMatch = (nid + mid).match(/(\d{13})/);
@@ -97,7 +112,6 @@
       return new Date(parseInt(idMatch[1], 10));
     }
     
-    debugLog('Failed to extract timestamp for node:', nid, mid);
     return null;
   }
 
@@ -501,13 +515,30 @@
           nodes = Array.from(list.querySelectorAll('[data-tid="channel-pane-message"], [id^="reply-chain-summary-"], .fui-ChatControlMessageItem, [data-tid="control-message-renderer"]'));
         }
 
+        // Keep track of the last successfully extracted timestamp in this batch
+        var lastValidTS = null;
+
         for (var i = 0; i < nodes.length; i++) {
           var node = nodes[i];
           var id = getMessageId(node);
           if (id && !processedIds.has(id)) {
-            processedIds.add(id); // Mark as processed BEFORE the await
+            processedIds.add(id); 
             var mdo = await serializeMessage(node);
             if (mdo) {
+              // If the message has no timestamp, give it a tiny offset from the last one
+              // to preserve the visual order during the final background sort.
+              if (mdo.timestamp === 0 || !mdo.timestamp) {
+                if (lastValidTS) {
+                  // We add 1ms so it sorts immediately AFTER the previous message
+                  mdo.timestamp = lastValidTS + 1;
+                } else {
+                  // If it's the first in a batch with no date, use the current time
+                  mdo.timestamp = Date.now();
+                }
+              } else {
+                lastValidTS = mdo.timestamp;
+              }
+
               batchBuffer.push(mdo);
               if (batchBuffer.length >= 10) {
                 sendToBackground('CHUNK_READY', { messages: batchBuffer });
