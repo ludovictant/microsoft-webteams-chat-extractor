@@ -1,5 +1,18 @@
 importScripts('lib/jszip.min.js');
 
+function finalizeExtraction() {
+  debugLog('Finalizing extraction data (sorting and filtering)...');
+  extractionData.messages.sort((a, b) => a.timestamp - b.timestamp);
+  
+  if (extractionData.days > 0) {
+    const cutoff = Date.now() - extractionData.days * 86400000;
+    const initialCount = extractionData.messages.length;
+    extractionData.messages = extractionData.messages.filter(m => m.timestamp >= cutoff);
+    debugLog(`Filtered ${initialCount - extractionData.messages.length} messages older than ${extractionData.days} days.`);
+  }
+  extractionData.count = extractionData.messages.length;
+}
+
 let currentDebugMode = false;
 function debugLog(...args) {
   if (currentDebugMode) console.log('[DEBUG]', ...args);
@@ -308,6 +321,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'STOP_EXTRACTION':
       if (extractionData.activeTabId) {
         chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'stop' }).catch(() => {});
+        // Ensure data is sorted/filtered even on manual stop
+        finalizeExtraction();
         // Transition to ready (or processing if assets are still being fetched)
         extractionData.status = (extractionData.processedAssets < extractionData.totalAssets) ? 'processing' : 'ready';
         debugLog('Extraction stopped by user. Transitioning status to:', extractionData.status);
@@ -411,13 +426,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'FINISH_EXTRACTION':
-      extractionData.messages.sort((a, b) => a.timestamp - b.timestamp);
-      
-      if (extractionData.days > 0) {
-        const cutoff = Date.now() - extractionData.days * 86400000;
-        extractionData.messages = extractionData.messages.filter(m => m.timestamp >= cutoff);
-      }
-      
+      finalizeExtraction();
       extractionData.status = 'processing';
       sendResponse({ status: extractionData.status });
       break;
@@ -432,9 +441,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'DOWNLOAD_ZIP':
       debugLog('Generating ZIP archive...');
       
+      // Safety sort/filter before generation
+      finalizeExtraction();
+
       // Calculate temporal range
-      let startTS = 0;
-      let endTS = 0;
       if (extractionData.messages.length > 0) {
         startTS = extractionData.messages[0].timestamp;
         endTS = extractionData.messages[extractionData.messages.length - 1].timestamp;

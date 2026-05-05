@@ -77,18 +77,27 @@
 
   // Standalone helper for timestamp
   function getTimestamp(node) {
-    var timeEl = node.querySelector('[id^="timestamp-"]');
-    if (timeEl && timeEl.getAttribute('datetime')) {
-      return new Date(timeEl.getAttribute('datetime'));
+    // 1. Try standard Teams timestamp elements
+    var timeEl = node.querySelector('[id^="timestamp-"], [data-tid="message-timestamp"], [data-tid="control-message-timestamp"], time');
+    if (timeEl) {
+      var dt = timeEl.getAttribute('datetime') || timeEl.getAttribute('originalarrivaltime');
+      if (dt) return new Date(dt);
     }
-    var arrivalEl = node.querySelector('[originalarrivaltime]');
-    if (arrivalEl) {
-      return new Date(arrivalEl.getAttribute('originalarrivaltime'));
-    }
-    var idMatch = (node.id || "").match(/(\d{13})/);
+    
+    // 2. Try the arrival time attribute directly on the node or descendants
+    var arrivalAttr = node.getAttribute('originalarrivaltime') || 
+                     (node.querySelector('[originalarrivaltime]') ? node.querySelector('[originalarrivaltime]').getAttribute('originalarrivaltime') : null);
+    if (arrivalAttr) return new Date(arrivalAttr);
+
+    // 3. Try to extract from data-mid or id (13-digit millisecond timestamp)
+    var mid = node.getAttribute('data-mid') || '';
+    var nid = node.id || '';
+    var idMatch = (nid + mid).match(/(\d{13})/);
     if (idMatch) {
       return new Date(parseInt(idMatch[1], 10));
     }
+    
+    debugLog('Failed to extract timestamp for node:', nid, mid);
     return null;
   }
 
