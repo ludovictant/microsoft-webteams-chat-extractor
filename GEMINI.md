@@ -1,0 +1,1 @@
+If you change the version in manifest.json file, don't end with ".00" when the minor version number is 0 (zéro). Use ".0" instead.
