@@ -1,4 +1,4 @@
 {
-  "version": "3.9.0",
-  "message": "New: Clearer ZIP filenames with 'from' and 'to' date range. Improved reliability: extraction no longer hangs if images fail to download."
+  "version": "3.9.1",
+  "message": "Fixed: System messages (meetings, participants) now correctly sort chronologically."
 }

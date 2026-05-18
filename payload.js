@@ -105,9 +105,32 @@
     }
 
     // 3. Fallback: Check data-mid or ID for 13-digit timestamp
+    // Visual Breakdown of the DOM - Why standard logic misses the date:
+    // node (fui-ChatControlMessageItem)
+    //   └── ...
+    //       └── div (data-tid="control-message-renderer", 
+    //                id="message-body-1770632684865",  <-- THE TIMESTAMP IS HERE!
+    //                data-mid="1770632684865")
+    
+    // Check the node itself first
     var mid = node.getAttribute('data-mid') || '';
     var nid = node.id || '';
     var idMatch = (nid + mid).match(/(\d{13})/);
+    
+    // If not on node, search children for ANY data-mid or ID containing 13 digits
+    if (!idMatch) {
+      var childrenWithId = node.querySelectorAll('[id*="17"], [data-mid*="17"]'); // "17" is current epoch prefix
+      for (var j = 0; j < childrenWithId.length; j++) {
+        var childMid = childrenWithId[j].getAttribute('data-mid') || '';
+        var childNid = childrenWithId[j].id || '';
+        var childMatch = (childNid + childMid).match(/(\d{13})/);
+        if (childMatch) {
+          idMatch = childMatch;
+          break;
+        }
+      }
+    }
+
     if (idMatch) {
       return new Date(parseInt(idMatch[1], 10));
     }
