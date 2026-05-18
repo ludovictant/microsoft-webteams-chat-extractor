@@ -1,5 +1,4 @@
 {
-  "version": "3.9.0",
-  "message": "New: Clearer ZIP filenames with 'from' and 'to' date range.</br>Fixed: extraction no longer hangs if images fail to download.</br>Fixed: System messages (meetings, participants) now correctly sort chronologically."
- 
+  "version": "3.10.0",
+  "message": "Fixed: Support for large chat exports (> 64MB). Fixed: System message sorting. Improved reliability for image downloads."
 }

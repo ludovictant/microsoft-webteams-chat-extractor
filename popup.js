@@ -234,30 +234,16 @@ document.addEventListener('DOMContentLoaded', function () {
 		
 		debugLog('Popup requesting ZIP download...');
 		chrome.runtime.sendMessage({ action: 'DOWNLOAD_ZIP' }, function(response) {
-			if (response && response.base64) {
-				debugLog('Popup received ZIP data (Base64), starting local download.');
-				
-				// Use the Chrome Downloads API instead of anchor click to prevent auto-opening
-				chrome.downloads.download({
-					url: 'data:application/zip;base64,' + response.base64,
-					filename: response.filename,
-					conflictAction: 'uniquify',
-					saveAs: false // False to prevent opening a Save As dialog
-				}, function(downloadId) {
-					if (chrome.runtime.lastError) {
-						console.error('Download failed:', chrome.runtime.lastError);
-					} else {
-						debugLog('Download started with ID:', downloadId);
-						showToast('Downloaded!');
-						downloadZipBtn.disabled = true;
-						downloadZipBtn.textContent = 'Downloaded!';
-					}
-				});
+			if (response && response.success) {
+				debugLog('Background confirmed download started.');
+				showToast('Downloaded!');
+				downloadZipBtn.disabled = true;
+				downloadZipBtn.textContent = 'Downloaded!';
 			} else if (response && response.error) {
-				console.error('ZIP generation failed on background:', response.error);
-				alert('ZIP generation failed: ' + response.error);
+				console.error('ZIP generation or download failed on background:', response.error);
+				alert('Export failed: ' + response.error);
 			} else {
-				console.error('Popup ZIP download failed or returned no data.');
+				console.error('Popup ZIP download request failed or returned unknown response.');
 			}
 			downloadZipBtn.disabled = false;
 			downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';

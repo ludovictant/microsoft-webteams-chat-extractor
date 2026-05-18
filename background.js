@@ -509,6 +509,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       finalizeExtraction();
 
       // Calculate temporal range
+      let startTS = 0, endTS = 0;
       if (extractionData.messages.length > 0) {
         startTS = extractionData.messages[0].timestamp;
         endTS = extractionData.messages[extractionData.messages.length - 1].timestamp;
@@ -531,9 +532,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const base64 = btoa(binaryString);
         
         debugLog('ZIP generated. Size:', buffer.byteLength, 'bytes.');
-        sendResponse({ 
-          base64: base64, 
-          filename: finalFilename 
+        
+        // Trigger download directly from background to avoid 64MB messaging limit
+        chrome.downloads.download({
+          url: 'data:application/zip;base64,' + base64,
+          filename: finalFilename,
+          conflictAction: 'uniquify',
+          saveAs: false
+        }, (downloadId) => {
+          if (chrome.runtime.lastError) {
+            console.error('Download failed from background:', chrome.runtime.lastError);
+            sendResponse({ error: chrome.runtime.lastError.message });
+          } else {
+            debugLog('Download started from background with ID:', downloadId);
+            sendResponse({ 
+              success: true, 
+              filename: finalFilename 
+            });
+          }
         });
       }).catch(err => {
         console.error('ZIP generation failed:', err);

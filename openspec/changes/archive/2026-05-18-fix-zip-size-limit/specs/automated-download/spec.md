@@ -1,6 +1,5 @@
-## Purpose
-This capability ensures that chat extractions are automatically converted into a ZIP archive and downloaded to the user's local machine upon completion, minimizing manual steps.
-## Requirements
+## MODIFIED Requirements
+
 ### Requirement: Trigger download upon completion
 The system SHALL automatically initiate the ZIP download process using the official **Chrome Downloads API** as soon as the background script transitions to the 'ready' state.
 
@@ -11,11 +10,3 @@ The system SHALL automatically initiate the ZIP download process using the offic
 - **AND** the background script SHALL execute `chrome.downloads.download` to save the file locally.
 - **AND** the background script SHALL notify the popup of the successful download trigger via the message response.
 - **NOTE**: Actual auto-opening behavior is subject to user-level Chrome settings and may not be entirely preventable via extension code.
-
-### Requirement: Prevent multiple auto-downloads
-The system SHALL ensure that an automatic download is only triggered once per extraction session.
-
-#### Scenario: Single auto-download trigger
-- **WHEN** an auto-download has been successfully initiated
-- **THEN** the system SHALL mark the session as 'downloaded' to prevent redundant download triggers during subsequent status polls.
-
