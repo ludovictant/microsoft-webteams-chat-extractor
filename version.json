@@ -1,4 +1,4 @@
 {
-  "version": "3.8.0",
-  "message": "New: detection of a new version if available on github"
+  "version": "3.9.0",
+  "message": "New: Update detection and manual check. Improved reliability: extraction no longer hangs if images fail to download."
 }

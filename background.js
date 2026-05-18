@@ -461,6 +461,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true });
       break;
 
+    case 'ASSET_FAILED':
+      // Increment processedAssets even on failure so the 'processing' -> 'ready' 
+      // transition can trigger once all attempts (success or fail) are done.
+      extractionData.processedAssets++;
+      debugLog('Asset failed to download. Skipping but incrementing counter to avoid hang. Processed:', extractionData.processedAssets, '/', extractionData.totalAssets);
+      sendResponse({ ok: true });
+      break;
+
     case 'PROGRESS':
       extractionData.count = message.count;
       extractionData.oldestTS = message.oldestTS;

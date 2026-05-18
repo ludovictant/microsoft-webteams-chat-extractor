@@ -174,7 +174,10 @@
       };
       reader.readAsDataURL(blob);
     } catch (e) {
-      console.warn('[DEBUG] Content Script failed to fetch asset:', url, e.message);
+      console.warn('[ERROR] Content Script failed to fetch asset:', url, e.message);
+      // Notify background that this asset failed so it can increment its counters.
+      // This prevents the extraction from getting stuck at "N / M" images.
+      sendToBackground('ASSET_FAILED', { url: url });
     }
   }
 
