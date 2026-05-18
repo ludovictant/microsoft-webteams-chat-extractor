@@ -513,7 +513,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         startTS = extractionData.messages[0].timestamp;
         endTS = extractionData.messages[extractionData.messages.length - 1].timestamp;
       }
-      const rangeSuffix = `_${formatFileTS(startTS)}_${formatFileTS(endTS)}`;
+      const rangeSuffix = `_from_${formatFileTS(startTS)}_to_${formatFileTS(endTS)}`;
       const finalFilename = `${sanitizeFileName(extractionData.title)}${rangeSuffix}.zip`;
 
       generateZip().then(async blob => {
