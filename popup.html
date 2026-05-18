@@ -373,6 +373,14 @@
 		#disclaimerBox strong {
 			color: #fff;
 		}
+
+		#updateBanner a:hover {
+			background: #e0e0e0 !important;
+		}
+
+		#checkUpdates:hover {
+			color: #fff;
+		}
 	</style>
 </head>
 
@@ -380,6 +388,15 @@
 	<div class="header">
 		<img src="icons/chat-32.png" alt="">
 		<h1 id="title">MS Teams Chat Extractor</h1>
+	</div>
+
+	<div id="updateBanner" style="display: none; background: #6264a7; padding: 10px 16px; border-bottom: 1px solid #3a3a52; color: #fff;">
+		<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+			<div style="font-weight: 600; font-size: 14px;">Update Available! <span id="newVersionTag"></span></div>
+			<span id="closeUpdateBanner" style="cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px;">&times;</span>
+		</div>
+		<div id="updateMessage" style="font-size: 12px; margin-bottom: 8px; color: #e0e0e0;"></div>
+		<a href="https://github.com/ludovictant/microsoft-webteams-chat-extractor/blob/main/UPDATE.md" target="_blank" style="display: inline-block; background: #fff; color: #6264a7; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; transition: background 0.15s;">How to Update</a>
 	</div>
 
 	<div id="disclaimerBox">
@@ -441,6 +458,7 @@
 	<div id="toast" class="toast">Downloaded!</div>
 
 	<div class="footer">
+		<span id="checkUpdates" style="float: left; cursor: pointer; text-decoration: underline;">Check for updates</span>
 		v<span id="versionNumber"></span>
 	</div>
 </body>

@@ -1,4 +1,4 @@
 {
   "version": "3.8.0",
-  "message": "You are running the latest version."
+  "message": "New: detection of a new version if available on github"
 }

@@ -1,4 +1,4 @@
-# How to Update the Extension
+# How to update
 
 Since this extension is installed manually (as an "unpacked" extension), it does not update automatically through the Chrome Web Store. Follow these steps to get the latest version.
 

@@ -1,5 +1,45 @@
 importScripts('lib/jszip.min.js');
 
+const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/ludovictant/microsoft-webteams-chat-extractor/main/version.json';
+
+// Version comparison helper
+function isVersionNewer(remote, local) {
+  const r = remote.split('.').map(Number);
+  const l = local.split('.').map(Number);
+  for (let i = 0; i < Math.max(r.length, l.length); i++) {
+    const rv = r[i] || 0;
+    const lv = l[i] || 0;
+    if (rv > lv) return true;
+    if (rv < lv) return false;
+  }
+  return false;
+}
+
+async function checkVersion(isManual = false) {
+  debugLog('Checking for updates...', isManual ? '(manual)' : '(automatic)');
+  try {
+    const response = await fetch(VERSION_CHECK_URL);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    
+    const currentVersion = chrome.runtime.getManifest().version;
+    const isNewer = isVersionNewer(data.version, currentVersion);
+    
+    const updateData = {
+      lastCheckTimestamp: Date.now(),
+      pendingUpdateVersion: isNewer ? data.version : null,
+      updateMessage: isNewer ? data.message : null
+    };
+
+    await chrome.storage.local.set(updateData);
+    debugLog('Update check complete. New version available:', isNewer);
+    return { success: true, isNewer, ...data };
+  } catch (error) {
+    console.error('Update check failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 function finalizeExtraction() {
   debugLog('Finalizing extraction data (sorting and filtering)...');
   extractionData.messages.sort((a, b) => a.timestamp - b.timestamp);
@@ -32,6 +72,22 @@ chrome.storage.onChanged.addListener((changes, area) => {
     currentDebugMode = !!changes.debugMode.newValue;
     debugLog('Debug mode updated to:', currentDebugMode);
   }
+});
+
+// Update Check Alarm Setup
+const UPDATE_ALARM_NAME = 'check-for-updates';
+chrome.alarms.create(UPDATE_ALARM_NAME, { periodInMinutes: 1440 }); // 24 hours
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === UPDATE_ALARM_NAME) {
+    checkVersion();
+  }
+});
+
+// Check on install/startup
+chrome.runtime.onInstalled.addListener(() => {
+  debugLog('Extension installed/updated. Running initial version check.');
+  checkVersion();
 });
 
   debugLog('Background script: Initializing...');
@@ -480,6 +536,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'HEARTBEAT':
       sendResponse({ status: 'alive' });
       break;
+
+    case 'CHECK_FOR_UPDATES':
+      checkVersion(true).then(result => {
+        sendResponse(result);
+      });
+      return true; // Keep channel open for async fetch
       
     case 'ERROR':
       console.error('Error reported from content script:', message.error);

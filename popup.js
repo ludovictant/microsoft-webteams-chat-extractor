@@ -360,6 +360,60 @@ document.addEventListener('DOMContentLoaded', function () {
 		});
 	}
 
+	var checkUpdatesLink = document.getElementById('checkUpdates');
+	var updateBanner = document.getElementById('updateBanner');
+	var newVersionTag = document.getElementById('newVersionTag');
+	var updateMessage = document.getElementById('updateMessage');
+	var closeUpdateBanner = document.getElementById('closeUpdateBanner');
+
+	// Check for pending updates on load
+	function refreshUpdateUI() {
+		chrome.storage.local.get(['pendingUpdateVersion', 'updateMessage'], function(result) {
+			if (result.pendingUpdateVersion) {
+				updateBanner.style.display = 'block';
+				if (newVersionTag) newVersionTag.textContent = '(' + result.pendingUpdateVersion + ')';
+				if (updateMessage) updateMessage.textContent = result.updateMessage;
+			} else {
+				updateBanner.style.display = 'none';
+			}
+		});
+	}
+	refreshUpdateUI();
+
+	if (closeUpdateBanner) {
+		closeUpdateBanner.addEventListener('click', function() {
+			updateBanner.style.display = 'none';
+			// Optionally clear storage or just hide for this session
+			// chrome.storage.local.remove(['pendingUpdateVersion', 'updateMessage']);
+		});
+	}
+
+	if (checkUpdatesLink) {
+		checkUpdatesLink.addEventListener('click', function() {
+			if (checkUpdatesLink.textContent === 'Checking...') return;
+			
+			var originalText = checkUpdatesLink.textContent;
+			checkUpdatesLink.textContent = 'Checking...';
+			checkUpdatesLink.style.opacity = '0.5';
+
+			chrome.runtime.sendMessage({ action: 'CHECK_FOR_UPDATES' }, function(response) {
+				checkUpdatesLink.textContent = originalText;
+				checkUpdatesLink.style.opacity = '1';
+
+				if (response && response.success) {
+					if (response.isNewer) {
+						showToast('New version available!');
+						refreshUpdateUI();
+					} else {
+						showToast('You are up to date!');
+					}
+				} else {
+					showToast('Check failed.');
+				}
+			});
+		});
+	}
+
 	// Handle stop button
 	if (stopAndExportBtn) {
 		stopAndExportBtn.addEventListener('click', async function() {
