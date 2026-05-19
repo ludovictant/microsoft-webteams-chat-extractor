@@ -1,4 +1,4 @@
 {
-  "version": "3.10.0",
-  "message": "Fixed: Support for large chat exports (> 64MB). Fixed: System message sorting. Improved reliability for image downloads."
+  "version": "3.10.1",
+  "message": "Note: Added warning regarding Virtual Desktop (VDI) compatibility. Fixed: Support for large chat exports (> 64MB). Fixed: System message sorting."
 }
