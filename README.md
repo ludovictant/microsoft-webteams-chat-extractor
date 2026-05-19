@@ -32,18 +32,7 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 
 ## Installation
 
-### Option 1: Using the ZIP file (Recommended)
-1. Download the `microsoft-teams-chat-extractor.zip` from the `dist/` folder in this repository.
-2. Extract the ZIP file to a folder on your computer.
-3. Open `chrome://extensions` in Chrome.
-4. Enable **Developer mode** (top-right toggle).
-5. Click **Load unpacked** and select the extracted folder.
-
-### Option 2: Clone the repository
-1. Clone this repository to your computer.
-2. Open `chrome://extensions` in Chrome.
-3. Enable **Developer mode** (top-right toggle).
-4. Click **Load unpacked** and select the extension folder.
+Please refer to the [INSTALL.md](./INSTALL.md) file for step-by-step instructions on how to install the extension in Google Chrome.
 
 ## Usage
 
