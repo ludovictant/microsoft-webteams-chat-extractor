@@ -34,6 +34,13 @@ Microsoft Teams does not support easily copying or exporting chat transcripts. T
 
 Please refer to the [INSTALL.md](./INSTALL.md) file for step-by-step instructions on how to install the extension in Google Chrome.
 
+## Important Usage Notes
+
+- **Do not switch conversations or minimize the Teams window** while the extraction is running. You may switch browser tabs, but the Teams window must remain visible and active.
+- **Do not use the tool simultaneously** in different tabs or windows.
+- **Virtual Desktop Solutions**: This extension is not compliant with VDI/Virtual Desktop environments.
+- **Completion**: If the progress bar seems to "rebound" or get stuck at the oldest message, simply click **Stop and Export** to finalize and download your archive.
+
 ## Usage
 
 1. Log into Microsoft Teams on the web at [teams.microsoft.com](https://teams.microsoft.com)
