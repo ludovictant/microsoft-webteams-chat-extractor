@@ -116,6 +116,8 @@ let extractionData = {
   status: 'idle',
   count: 0,
   oldestTS: null,
+  noChangeCount: 0,
+  waitTime: 2500,
   processedAssets: 0,
   totalAssets: 0
 };
@@ -380,6 +382,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         status: 'extracting',
         count: 0,
         oldestTS: null,
+        noChangeCount: 0,
+        waitTime: 2500,
         processedAssets: 0,
         totalAssets: 0
       };
@@ -426,6 +430,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         status: 'idle',
         count: 0,
         oldestTS: null,
+        noChangeCount: 0,
+        waitTime: 2500,
         processedAssets: 0,
         totalAssets: 0
       };
@@ -491,6 +497,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'PROGRESS':
       extractionData.count = message.count;
       extractionData.oldestTS = message.oldestTS;
+      extractionData.noChangeCount = message.noChangeCount || 0;
+      extractionData.waitTime = message.waitTime || 2500;
       console.log(`[PROGRESS] Oldest message parsed: ${formatLogTS(extractionData.oldestTS)} (Total: ${extractionData.count})`);
       broadcastStatus();
       sendResponse({ ok: true });

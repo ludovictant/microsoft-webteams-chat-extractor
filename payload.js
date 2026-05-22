@@ -674,7 +674,12 @@
             }
             prevOldest = currentOldest;
             
-            sendToBackground('PROGRESS', { count: processedIds.size, oldestTS: currentOldest ? currentOldest.getTime() : null });
+            sendToBackground('PROGRESS', { 
+              count: processedIds.size, 
+              oldestTS: currentOldest ? currentOldest.getTime() : null,
+              noChangeCount: noChangeCount,
+              waitTime: waitTime
+            });
           }
           obs.disconnect();
         }

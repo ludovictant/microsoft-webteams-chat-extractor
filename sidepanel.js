@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var debugToggle = document.getElementById('debugToggle');
 	var statusNudge = document.getElementById('statusNudge');
 	var disclaimerBox = document.getElementById('disclaimerBox');
+	var retryStatus = document.getElementById('retryStatus');
 	
 	var activeTabId = null;
 	var pollingInterval = null;
@@ -51,7 +52,6 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
-	var autoDownloadTriggered = false;
 	var isProcessingRequest = false;
 	var currentDebugMode = false;
 	var resumeMessageTimeout = null;
@@ -103,10 +103,10 @@ document.addEventListener('DOMContentLoaded', function () {
 		var isAnotherTabBusy = data.status !== 'idle' && activeTabId !== null && data.activeTabId !== null && activeTabId !== data.activeTabId;
 
 		if (data.status === 'idle') {
+			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'block';
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'none';
-			autoDownloadTriggered = false; // Reset flag for next run
 			isProcessingRequest = false;   // Reset request lock
 			
 			// Re-enable trigger buttons only if no other tab is busy
@@ -138,18 +138,33 @@ document.addEventListener('DOMContentLoaded', function () {
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
 			progressText.textContent = data.count + ' messages collected so far\u2026';
+
+			// Show retry status if waiting
+			if (retryStatus) {
+				if (data.noChangeCount > 0 && data.noChangeCount < 15) {
+					retryStatus.innerHTML = '<strong>(!) Waiting:</strong> It seems we are at the oldest message.<br>Retrying in ' + data.waitTime + 'ms (' + data.noChangeCount + '/15 attempt)...';
+					retryStatus.style.display = 'block';
+				} else {
+					retryStatus.style.display = 'none';
+				}
+			}
 			
 			// Clear stuck message if it was there, show resumed message
 			if (statusNudge) {
 				if (isAnotherTabBusy) {
 					statusNudge.innerHTML = '<div style="margin-bottom: 16px;"><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is active in another tab.</span></div>';
-				} else if (statusNudge.dataset.status === 'stuck') {
+				} else if (statusNudge.dataset.status === 'stuck' && data.noChangeCount === 0) {
 					statusNudge.dataset.status = 'extracting';
 					statusNudge.innerHTML = '<div style="margin-bottom: 16px;"><strong style="color: #43a047;">(!) Success:</strong> Extraction resumed successfully!</div>';
 					if (resumeMessageTimeout) clearTimeout(resumeMessageTimeout);
 					resumeMessageTimeout = setTimeout(function() {
 						statusNudge.innerHTML = '';
 					}, 10000);
+				} else if (data.noChangeCount === 0) {
+					// Only clear if we aren't showing a success message or other important alert
+					if (!statusNudge.innerHTML.includes('Success')) {
+						statusNudge.innerHTML = '';
+					}
 				}
 			}
 			if (data.oldestTS) {
@@ -181,19 +196,24 @@ document.addEventListener('DOMContentLoaded', function () {
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
 			progressText.textContent = data.count + ' messages collected so far\u2026';
+
+			if (retryStatus) {
+				retryStatus.innerHTML = '<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
+										'<div>If you think that some history remains, manually scroll up in Teams then click <strong>Resume Manually</strong>.</div>' +
+										'<div>Otherwise, click <strong>Stop and Export</strong> to finish.</div>';
+				retryStatus.style.display = 'block';
+			}
+
 			if (statusNudge) {
 				statusNudge.dataset.status = 'stuck';
-				statusNudge.innerHTML = '<div style="margin-bottom: 16px;">' +
-										'<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
-										'<div>If you think that some history remains, manually scroll up in Teams then click <strong>Resume Manually</strong>.</div>' +
-										'<div>Otherwise, click <strong>Stop and Export</strong> to finish.</div>' +
-										'</div>';
+				statusNudge.innerHTML = '';
 			}
 			
 			dateDepth.style.display = 'block';
 			progressBarContainer.style.display = 'block';
 			progressBar.classList.add('indeterminate');
 		} else if (data.status === 'processing') {
+			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
@@ -215,19 +235,14 @@ document.addEventListener('DOMContentLoaded', function () {
 				progressBar.style.width = '100%';
 			}
 		} else if (data.status === 'ready') {
+			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'none';
 			finalActionsDiv.style.display = 'block';
 			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'none';
-			
-			// Auto-download logic
-			if (!autoDownloadTriggered) {
-				autoDownloadTriggered = true;
-				debugLog('Side panel: Auto-triggering ZIP download...');
-				downloadZip();
-			}
 		} else if (data.status === 'error') {
+			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			progressText.innerHTML = '<span style="color:red;">' + data.error + '</span>';
@@ -266,11 +281,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			} else if (response && response.error) {
 				console.error('ZIP generation or download failed on background:', response.error);
 				alert('Export failed: ' + response.error);
+				// Re-enable on error so user can retry
+				downloadZipBtn.disabled = false;
+				downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';
 			} else {
 				console.error('Side panel ZIP download request failed or returned unknown response.');
+				downloadZipBtn.disabled = false;
+				downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';
 			}
-			downloadZipBtn.disabled = false;
-			downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';
 		});
 	}
 
@@ -310,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			activeTabId = tab.id;
 
 			try {
-				autoDownloadTriggered = false; // Reset flag
 				debugLog('Side panel injecting payload.js into tab:', tab.id);
 				await chrome.scripting.executeScript({
 					target: { tabId: tab.id },

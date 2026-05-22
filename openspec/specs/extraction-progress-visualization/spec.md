@@ -1,14 +1,15 @@
-## ADDED Requirements
-
+## Purpose
+Visualize extraction progress to the user.
+## Requirements
 ### Requirement: Oldest Timestamp Reporting
-The content script SHALL calculate and send the Unix timestamp of the oldest message collected so far in every `progress` message sent to the extension popup.
+The content script SHALL calculate and send the Unix timestamp of the oldest message collected so far, along with any stall metadata (retry count and wait time), in every `progress` message sent to the extension.
 
-#### Scenario: Progress message contains timestamp
+#### Scenario: Progress message contains timestamp and stall data
 - **WHEN** the `scrollAndExtract` loop completes a collection cycle
-- **THEN** it SHALL include `oldestTS` in the data sent to `chrome.runtime.sendMessage`
+- **THEN** it SHALL include `oldestTS`, `noChangeCount`, and `waitTime` in the data sent to `chrome.runtime.sendMessage`
 
 ### Requirement: Date Depth Visualization
-The popup SHALL display the date of the oldest message collected so far in a human-readable format, including the full year.
+The side panel SHALL display the date of the oldest message collected so far in a human-readable format, including the full year.
 
 #### Scenario: Display date depth with year
 - **WHEN** a `progress` message with an `oldestTS` is received
@@ -22,7 +23,7 @@ The background script SHALL persistently log the progress of the extraction to t
 - **THEN** the background script SHALL emit a log entry in the format `[PROGRESS] Oldest message parsed: YYYYmmDD.HHMMSS`.
 
 ### Requirement: Progress Bar for Time-Limited Extraction
-For extraction requests with a specific time range (e.g., 7 days), the popup SHALL display a progress bar representing the percentage of the time range covered. During the subsequent image processing phase, the bar SHALL switch to representing the percentage of images converted.
+For extraction requests with a specific time range (e.g., 7 days), the side panel SHALL display a progress bar representing the percentage of the time range covered. During the subsequent image processing phase, the bar SHALL switch to representing the percentage of images converted.
 
 #### Scenario: Progress bar behavior transition
 - **WHEN** the scrolling phase is active
@@ -36,3 +37,4 @@ For "All history" extraction requests, the progress bar SHALL operate in an inde
 #### Scenario: Indeterminate bar for all history
 - **WHEN** the user starts an "All history" extraction
 - **THEN** the progress bar SHALL show a continuous animation instead of a fixed percentage
+
