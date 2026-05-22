@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	var statusNudge = document.getElementById('statusNudge');
 	var disclaimerBox = document.getElementById('disclaimerBox');
 	var retryStatus = document.getElementById('retryStatus');
+	var localStorageToggle = document.getElementById('localStorageToggle');
 	
 	var activeTabId = null;
 	var pollingInterval = null;
@@ -75,6 +76,14 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
+	// Load local storage preference
+	chrome.storage.local.get(['localStorageEnabled'], function(result) {
+		if (localStorageToggle) {
+			// Default to false if not set
+			localStorageToggle.checked = !!result.localStorageEnabled;
+		}
+	});
+
 	// Handle debug toggle changes
 	if (debugToggle) {
 		debugToggle.addEventListener('change', function() {
@@ -82,6 +91,16 @@ document.addEventListener('DOMContentLoaded', function () {
 			currentDebugMode = isEnabled;
 			chrome.storage.session.set({ debugMode: isEnabled }, function() {
 				debugLog('Debug mode set to:', isEnabled);
+			});
+		});
+	}
+
+	// Handle local storage toggle changes
+	if (localStorageToggle) {
+		localStorageToggle.addEventListener('change', function() {
+			var isEnabled = localStorageToggle.checked;
+			chrome.storage.local.set({ localStorageEnabled: isEnabled }, function() {
+				debugLog('Local storage preference set to:', isEnabled);
 			});
 		});
 	}
@@ -335,15 +354,19 @@ document.addEventListener('DOMContentLoaded', function () {
 				});
 				debugLog('Side panel sending extract signal to tab:', tab.id, { days, sort });
 				
-				// Get current debug mode from storage to ensure it's up to date
-				chrome.storage.session.get(['debugMode'], async function(result) {
-					// Use !! to explicitly cast to boolean (handles undefined as false)
-					var debugMode = !!result.debugMode;
-					await chrome.tabs.sendMessage(tab.id, { 
-						action: 'extract', 
-						days: days, 
-						sort: sort,
-						debugMode: debugMode 
+				// Get current debug mode and local storage preference from storage
+				chrome.storage.session.get(['debugMode'], function(sessionResult) {
+					chrome.storage.local.get(['localStorageEnabled'], async function(localResult) {
+						var debugMode = !!sessionResult.debugMode;
+						var localStorageEnabled = !!localResult.localStorageEnabled;
+						
+						await chrome.tabs.sendMessage(tab.id, { 
+							action: 'extract', 
+							days: days, 
+							sort: sort,
+							debugMode: debugMode,
+							localStorageEnabled: localStorageEnabled
+						});
 					});
 				});
 			} catch (err) {

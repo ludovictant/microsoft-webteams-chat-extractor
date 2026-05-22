@@ -218,7 +218,7 @@
       
       return {
         id: id,
-        type: 'system',
+        type: 'meta',
         content: controlText,
         timestamp: ts ? ts.getTime() : Date.now(),
         author: 'System',
@@ -447,6 +447,7 @@
 
     return {
       id: id,
+      type: 'true',
       author: author,
       avatarUrl: avatarUrl,
       timestamp: timestamp,
@@ -487,8 +488,32 @@
     return cleanedTitle || 'teams-chat';
   }
 
+  // Helper to extract a unique teams conversation ID
+  function getTeamsConversationId() {
+    // 1. Try DOM selector for header with ID (from user example)
+    var headerEl = document.querySelector('[id^="chat-header-"]');
+    if (headerEl && headerEl.id) {
+        var id = headerEl.id.replace('chat-header-', '');
+        debugLog('Conversation ID extracted from header ID:', id);
+        return id;
+    }
+
+    // 2. Fallback to URL parsing
+    var urlMatch = window.location.href.match(/chat\/([^/?#]+)/);
+    if (urlMatch) {
+        var id = decodeURIComponent(urlMatch[1]);
+        debugLog('Conversation ID extracted from URL:', id);
+        return id;
+    }
+
+    // 3. Last resort: Clean title as ID
+    var titleId = getChatTitle().toLowerCase().replace(/[^a-z0-9]/g, '-');
+    debugLog('Conversation ID fallback to title slug:', titleId);
+    return titleId;
+  }
+
   // ---- Main extraction routine ----
-  async function scrollAndExtract(days, sort) {
+  async function scrollAndExtract(days, sort, localStorageEnabled) {
     stopRequested = false;
     forceResumeRequested = false;
     fetchedAssets.clear();
@@ -508,8 +533,14 @@
       var batchBuffer = [];
 
       var chatTitle = getChatTitle();
+      var teamsId = getTeamsConversationId();
 
-      sendToBackground('START_EXTRACTION', { title: chatTitle, days: days });
+      sendToBackground('START_EXTRACTION', { 
+        title: chatTitle, 
+        days: days,
+        localStorageEnabled: localStorageEnabled,
+        teamsId: teamsId
+      });
 
       // Extract connected user profile info as a fallback for their own messages
       var meControl = document.querySelector('[data-tid="me-control-avatar"]');
@@ -567,7 +598,10 @@
 
               batchBuffer.push(mdo);
               if (batchBuffer.length >= 10) {
-                sendToBackground('CHUNK_READY', { messages: batchBuffer });
+                sendToBackground('CHUNK_READY', { 
+                  messages: batchBuffer,
+                  teamsId: teamsId
+                });
                 batchBuffer = [];
               }
             }
@@ -687,7 +721,10 @@
 
       // Final flush
       if (batchBuffer.length > 0) {
-        sendToBackground('CHUNK_READY', { messages: batchBuffer });
+        sendToBackground('CHUNK_READY', { 
+          messages: batchBuffer,
+          teamsId: teamsId
+        });
         batchBuffer = [];
       }
 
@@ -711,10 +748,9 @@
     if (message.action === 'extract') {
       currentDebugMode = !!message.debugMode;
       debugLog('Extraction started with debug mode:', currentDebugMode);
-      scrollAndExtract(message.days, message.sort);
+      scrollAndExtract(message.days, message.sort, !!message.localStorageEnabled);
       sendResponse({ status: 'started' });
-    } else if (message.action === 'stop') {
-      stopRequested = true;
+    } else if (message.action === 'stop') {      stopRequested = true;
       sendResponse({ status: 'stopping' });
     } else if (message.action === 'force_resume') {
       forceResumeRequested = true;
