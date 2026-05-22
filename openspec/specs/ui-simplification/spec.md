@@ -21,7 +21,7 @@ The system SHALL provide a simplified extraction interface by removing redundant
 - **AND** the header title SHALL be "MS Teams Chat Extractor".
 
 ### Requirement: Standardized Primary Button Styling
-The system SHALL ensure that all primary action buttons (including extraction triggers, "Download ZIP", "Stop and Export", and "Start New Extraction") share a consistent visual language to ensure they are easily identifiable as interactive elements.
+The system SHALL ensure that all primary action buttons (including extraction triggers, "Download ZIP", "Stop current extraction", and "Start New Extraction") share a consistent visual language to ensure they are easily identifiable as interactive elements.
 
 #### Scenario: Extraction triggers match standard theme
 - **WHEN** the extraction trigger buttons are displayed in the options panel

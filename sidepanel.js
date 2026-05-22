@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	var retryStatus = document.getElementById('retryStatus');
 	var localStorageToggle = document.getElementById('localStorageToggle');
 	
+	var clearStorageBtn = document.getElementById('clearStorageBtn');
+	
 	var activeTabId = null;
 	var pollingInterval = null;
 
@@ -52,6 +54,21 @@ document.addEventListener('DOMContentLoaded', function () {
 			updateUI(message.data);
 		}
 	});
+
+	// Handle clear storage button
+	if (clearStorageBtn) {
+		clearStorageBtn.addEventListener('click', function() {
+			if (confirm('Are you sure you want to delete ALL local storage? This cannot be undone.')) {
+				chrome.runtime.sendMessage({ action: 'CLEAR_LOCAL_STORAGE' }, function(response) {
+					if (response && response.success) {
+						showToast('Local storage deleted!');
+					} else {
+						alert('Failed to delete storage: ' + (response ? response.error : 'Unknown error'));
+					}
+				});
+			}
+		});
+	}
 
 	var isProcessingRequest = false;
 	var currentDebugMode = false;
@@ -152,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'none';
-			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop current extraction';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
@@ -210,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
 			if (resumeExtractionBtn) resumeExtractionBtn.style.display = 'block';
-			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop current extraction';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
@@ -219,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (retryStatus) {
 				retryStatus.innerHTML = '<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
 										'<div>If you think that some history remains, manually scroll up in Teams then click <strong>Resume Manually</strong>.</div>' +
-										'<div>Otherwise, click <strong>Stop and Export</strong> to finish.</div>';
+										'<div>Otherwise, click <strong>Stop current extraction</strong> to finish.</div>';
 				retryStatus.style.display = 'block';
 			}
 
@@ -236,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
-			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop and Export';
+			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Stop current extraction';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';

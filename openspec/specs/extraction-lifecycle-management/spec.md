@@ -23,12 +23,12 @@ The system SHALL detect when programmatic scrolling fails to load new messages a
 - **THEN** the system SHALL transition to the `stuck` state and notify the background script.
 
 ### Requirement: Manual Scroll Prompt
-The side panel SHALL display a clear instruction to the user when the extraction enters the `stuck` state, explaining that stalling often occurs when the top of the history is reached. It SHALL direct them to manually scroll if history remains, or use the "Stop and Export" button if finished.
+The side panel SHALL display a clear instruction to the user when the extraction enters the `stuck` state, explaining that stalling often occurs when the top of the history is reached. It SHALL direct them to manually scroll if history remains, or use the "Stop current extraction" button if finished.
 
 #### Scenario: Display nuanced manual scroll prompt
 - **WHEN** the extension status is `stuck`
-- **THEN** the side panel SHALL show a prominent message: "Stalled: The top of the chat may have been reached. If you think that some history remains, manually scroll up in Teams then click 'Resume Manually'. Otherwise, click 'Stop and Export' to finish."
-- **AND** it SHALL display the "Resume Manually" and "Stop and Export" buttons.
+- **THEN** the side panel SHALL show a prominent message: "Stalled: The top of the chat may have been reached. If you think that some history remains, manually scroll up in Teams then click 'Resume Manually'. Otherwise, click 'Stop current extraction' to finish."
+- **AND** it SHALL display the "Resume Manually" and "Stop current extraction" buttons.
 
 #### Scenario: Resume after manual scroll
 - **WHEN** the system is in the `stuck` state
@@ -68,19 +68,19 @@ The system SHALL continuously poll for new messages while in the `stuck` state a
 - **THEN** the system SHALL automatically revert to the `extracting` state and continue the process.
 - **AND** it SHALL display a green success notification in the popup for 10 seconds.
 
-### Requirement: Force Stop and Export during Processing or Stall
+### Requirement: Force Stop current extraction during Processing or Stall
 The system SHALL allow users to manually terminate any active extraction or processing phase and immediately trigger the export of all collected data and already-processed assets.
 
 #### Scenario: Force stop during processing
 - **WHEN** the extension is in the `processing` state
-- **THEN** the "Stop Extraction" button SHALL display the label "Stop and Export".
-- **WHEN** the user clicks the "Stop and Export" button
+- **THEN** the "Stop Extraction" button SHALL display the label "Stop current extraction".
+- **WHEN** the user clicks the "Stop current extraction" button
 - **THEN** the system SHALL immediately transition to the `ready` state.
 
 #### Scenario: Stop and export during extraction
 - **WHEN** the extension is in the `extracting` or `stuck` states
-- **THEN** the stop button SHALL display the label "Stop and Export".
-- **WHEN** the user clicks the "Stop and Export" button
+- **THEN** the stop button SHALL display the label "Stop current extraction".
+- **WHEN** the user clicks the "Stop current extraction" button
 - **THEN** the system SHALL signal the content script to stop.
 - **AND** the system SHALL transition to the completion flow (`processing` or `ready`) to allow the user to download the archive.
 

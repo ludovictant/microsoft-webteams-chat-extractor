@@ -262,8 +262,26 @@ class TeamsExtractorDB {
       request.onerror = (e) => reject(e.target.error);
     });
   }
-}
 
+  async clearAll() {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['conversations', 'messages', 'assets'], 'readwrite');
+      transaction.objectStore('conversations').clear();
+      transaction.objectStore('messages').clear();
+      transaction.objectStore('assets').clear();
+
+      transaction.oncomplete = () => {
+        debugLog('IndexedDB cleared successfully');
+        resolve();
+      };
+      transaction.onerror = (e) => reject(e.target.error);
+    });
+  }
+}
+      
+      
+      
 const db = new TeamsExtractorDB();
 
 function renderHTML() {
@@ -663,6 +681,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       extractionData.error = message.error;
       sendResponse({ ok: true });
       break;
+
+    case 'CLEAR_LOCAL_STORAGE':
+      db.clearAll().then(() => {
+        sendResponse({ success: true });
+      }).catch(err => {
+        console.error('Failed to clear DB:', err);
+        sendResponse({ success: false, error: err.message });
+      });
+      return true;
 
     default:
       sendResponse({ error: 'Unknown action' });

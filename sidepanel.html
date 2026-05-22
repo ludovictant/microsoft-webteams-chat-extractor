@@ -358,6 +358,59 @@
 			transform: translateX(12px);
 		}
 
+		/* ---- Info Icon & Tooltip ---- */
+		.info-icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 14px;
+			height: 14px;
+			background: #4a4a62;
+			color: #fff;
+			border-radius: 50%;
+			font-size: 10px;
+			font-weight: bold;
+			cursor: help;
+			margin-left: 6px;
+			position: relative;
+		}
+
+		.tooltip {
+			visibility: hidden;
+			width: 220px;
+			background-color: #333;
+			color: #fff;
+			text-align: left;
+			border-radius: 6px;
+			padding: 10px;
+			position: absolute;
+			z-index: 100;
+			bottom: 125%;
+			left: 0;
+			opacity: 0;
+			transition: opacity 0.3s;
+			font-size: 11px;
+			font-weight: normal;
+			line-height: 1.4;
+			box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+			pointer-events: none;
+		}
+
+		.tooltip::after {
+			content: "";
+			position: absolute;
+			top: 100%;
+			left: 10px;
+			border-width: 5px;
+			border-style: solid;
+			border-color: #333 transparent transparent transparent;
+		}
+
+		.info-icon:hover .tooltip {
+			visibility: visible;
+			opacity: 1;
+		}
+
 		/* ---- Disclaimer ---- */
 		#disclaimerBox {
 			margin: 16px;
@@ -414,7 +467,7 @@
 		<p><strong style="color: #f9a825;">(!) Important:</strong> <strong>Do not switch conversations or minimize the Teams window</strong> while the extraction is running (switching browser tabs is okay).</p>
 		<p><strong>Do not use this tool simultaneously in different tabs or windows.</strong></p>
 		<p><strong>This extension is not compliant with Virtual Desktop solutions.</strong></p>
-		<p>When the progress "rebounds at" or is sticked to  the oldest message, simply click <strong>Stop and Export</strong> to finish.</p>
+		<p>When the progress "rebounds at" or is sticked to  the oldest message, simply click <strong>Stop current extraction</strong> to finish.</p>
 	</div>
 
 	<div id="statusNudge" style="margin: 0 16px; font-size: 13px;"></div>
@@ -428,7 +481,18 @@
 		</div>
 
 		<div style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px; margin-top: 16px;">
-			<span style="font-size: 13px; color: #e0e0e0;">Local storage</span>
+			<span style="font-size: 13px; color: #e0e0e0; display: flex; align-items: center;">
+				Local storage
+				<span class="info-icon">
+					i
+					<span class="tooltip">
+						<strong>Local Storage:</strong><br>
+						Build a persistent local history of your Teams chats.<br>
+						Data is saved in real-time to prevent loss on browser crashes.<br>
+						Faster future extractions via incremental crawling.
+					</span>
+				</span>
+			</span>
 			<label class="switch">
 				<input type="checkbox" id="localStorageToggle">
 				<span class="slider"></span>
@@ -448,7 +512,7 @@
 		<p id="progressText" style="margin-bottom: 8px;">Loading...</p>
 		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
 			<button id="resumeExtractionBtn" style="display: none;">Resume Manually</button>
-			<button id="stopAndExportBtn">Stop and Export</button>
+			<button id="stopAndExportBtn">Stop current extraction</button>
 			<button id="abortExtractionBtn" style="display: none;">Abort Extraction</button>
 		</div>
 	</div>
@@ -480,6 +544,7 @@
 					<span class="slider"></span>
 				</label>
 			</div>
+			<button id="clearStorageBtn" style="background: transparent; border: 1px solid #d32f2f; color: #d32f2f; padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; margin-left: 8px;">delete local storage</button>
 		</div>
 		<div class="footer-right">
 			v<span id="versionNumber"></span>

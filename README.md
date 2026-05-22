@@ -39,7 +39,7 @@ Please refer to the [INSTALL.md](./INSTALL.md) file for step-by-step instruction
 - **Do not switch conversations or minimize the Teams window** while the extraction is running. You may switch browser tabs, but the Teams window must remain visible and active.
 - **Do not use the tool simultaneously** in different tabs or windows.
 - **Virtual Desktop Solutions**: This extension is not compliant with VDI/Virtual Desktop environments.
-- **Completion**: If the progress bar seems to "rebound" or get stuck at the oldest message, simply click **Stop and Export** to finalize and download your archive.
+- **Completion**: If the progress bar seems to "rebound" or get stuck at the oldest message, simply click **Stop current extraction** to finalize and download your archive.
 
 ## Usage
 
