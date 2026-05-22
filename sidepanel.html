@@ -1,0 +1,480 @@
+<!doctype html>
+<html>
+<head>
+	<title>MS Teams Chat Extractor</title>
+	<script src="sidepanel.js"></script>
+	<style>
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			font-size: 14px;
+			line-height: 1.5;
+			color: #e0e0e0;
+			background-color: #1e1e2e;
+		}
+
+		/* ---- Header ---- */
+		.header {
+			background: #2b2b3d;
+			padding: 14px 16px;
+			border-bottom: 1px solid #3a3a52;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+
+		.header img {
+			width: 24px;
+			height: 24px;
+		}
+
+		.header h1 {
+			font-size: 15px;
+			font-weight: 600;
+			color: #fff;
+		}
+
+		/* ---- Options panel ---- */
+		#options {
+			padding: 16px;
+		}
+
+		#options .section-label {
+			font-size: 12px;
+			font-weight: 600;
+			color: #8888a8;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			margin-bottom: 8px;
+		}
+
+		#options .btn-group {
+			display: flex;
+			flex-direction: column;
+			gap: 4px;
+			margin-bottom: 16px;
+		}
+
+		#options button {
+			display: block;
+			width: 100%;
+			padding: 12px 14px;
+			border: none;
+			border-radius: 8px;
+			background: #43a047;
+			color: #fff;
+			font-size: 14px;
+			font-weight: 600;
+			font-family: inherit;
+			cursor: pointer;
+			text-align: center;
+			transition: background 0.15s, transform 0.15s;
+		}
+
+		#options button:hover {
+			background: #4caf50;
+		}
+
+		#options button:active {
+			transform: scale(0.98);
+		}
+
+		/* ---- Sort toggle ---- */
+		.sort-group {
+			display: flex;
+			background: #2b2b3d;
+			border: 1px solid #3a3a52;
+			border-radius: 8px;
+			overflow: hidden;
+		}
+
+		.sort-group label {
+			flex: 1;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 8px 0;
+			font-size: 13px;
+			color: #8888a8;
+			cursor: pointer;
+			transition: background 0.15s, color 0.15s;
+			gap: 6px;
+		}
+
+		.sort-group label:first-child {
+			border-right: 1px solid #3a3a52;
+		}
+
+		.sort-group input[type="radio"] {
+			display: none;
+		}
+
+		.sort-group input[type="radio"]:checked + span {
+			color: #fff;
+		}
+
+		.sort-group label:has(input:checked) {
+			background: #3a3a56;
+			color: #fff;
+		}
+
+		/* ---- Status / spinner ---- */
+		#status {
+			padding: 40px 16px;
+			text-align: center;
+			color: #8888a8;
+		}
+
+		#status .spinner {
+			display: inline-block;
+			width: 24px;
+			height: 24px;
+			border: 3px solid #3a3a52;
+			border-top-color: #6264a7;
+			border-radius: 50%;
+			animation: spin 0.8s linear infinite;
+			margin-bottom: 12px;
+		}
+
+		@keyframes spin {
+			to { transform: rotate(360deg); }
+		}
+
+		#status p {
+			font-size: 13px;
+		}
+
+		/* ---- Progress Bar ---- */
+		.progress-container {
+			width: 100%;
+			height: 6px;
+			background-color: #3a3a52;
+			border-radius: 3px;
+			margin: 12px 0;
+			overflow: hidden;
+			display: none;
+		}
+
+		.progress-bar {
+			height: 100%;
+			background-color: #6264a7;
+			width: 0%;
+			transition: width 0.3s ease;
+		}
+
+		.progress-bar.indeterminate {
+			width: 30%;
+			animation: indeterminate 1.5s infinite linear;
+		}
+
+		@keyframes indeterminate {
+			from { transform: translateX(-100%); }
+			to { transform: translateX(350%); }
+		}
+
+		#dateDepth {
+			font-size: 12px;
+			color: #8888a8;
+			margin-bottom: 8px;
+			display: none;
+		}
+
+		/* ---- Final state ---- */
+		#finalActions {
+			padding: 40px 16px;
+			text-align: center;
+		}
+
+		#finalActions h2 {
+			font-size: 18px;
+			color: #fff;
+			margin-bottom: 10px;
+		}
+
+		/* ---- Unified Button Styling ---- */
+		#downloadZipBtn, #startNewExtractionBtn, #stopAndExportBtn, #resumeExtractionBtn, #abortExtractionBtn {
+			color: white;
+			border: none;
+			padding: 12px 24px;
+			border-radius: 8px;
+			cursor: pointer;
+			font-size: 14px;
+			font-weight: 600;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			width: 100%;
+			margin: 0 auto;
+			transition: all 0.15s;
+		}
+
+		#downloadZipBtn {
+			background: #6264a7;
+		}
+
+		#downloadZipBtn:hover {
+			background: #7b7db7;
+		}
+
+		#startNewExtractionBtn, #resumeExtractionBtn {
+			background: #43a047;
+		}
+
+		#startNewExtractionBtn:hover, #resumeExtractionBtn:hover {
+			background: #4caf50;
+		}
+
+		#stopAndExportBtn {
+			background: #d32f2f;
+		}
+
+		#stopAndExportBtn:hover {
+			background: #e53935;
+		}
+
+		#abortExtractionBtn {
+			background: transparent;
+			color: #8888a8;
+			border: 1px solid #3a3a52;
+		}
+
+		#abortExtractionBtn:hover {
+			background: #2b2b3d;
+			color: #ffffff;
+			border-color: #4a4a62;
+		}
+
+		#downloadZipBtn:active, #startNewExtractionBtn:active, #stopAndExportBtn:active, #resumeExtractionBtn:active, #abortExtractionBtn:active {
+			transform: scale(0.98);
+		}
+
+		button:disabled {
+			background: #3a3a52 !important;
+			color: #8888a8 !important;
+			cursor: not-allowed !important;
+			transform: none !important;
+			opacity: 0.7;
+		}
+
+		#downloadZipBtn svg, #startNewExtractionBtn svg, #stopAndExportBtn svg, #resumeExtractionBtn svg, #abortExtractionBtn svg {
+			width: 18px;
+			height: 18px;
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 2.5;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+
+		.footer {
+			padding: 8px 16px;
+			border-top: 1px solid #3a3a52;
+			background: #2b2b3d;
+			color: #8888a8;
+			font-size: 11px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		.footer-left {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.footer-right {
+			text-align: right;
+		}
+
+		.toast {
+			position: fixed;
+			bottom: 40px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: #81c784;
+			color: #1b5e20;
+			padding: 4px 12px;
+			border-radius: 4px;
+			font-size: 12px;
+			opacity: 0;
+			transition: opacity 0.3s;
+			pointer-events: none;
+		}
+
+		.toast.show {
+			opacity: 1;
+		}
+
+		/* ---- Switch Toggle (Compact for footer) ---- */
+		.switch {
+			position: relative;
+			display: inline-block;
+			width: 28px;
+			height: 16px;
+		}
+
+		.switch input {
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+
+		.slider {
+			position: absolute;
+			cursor: pointer;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: #3a3a52;
+			transition: .4s;
+			border-radius: 16px;
+		}
+
+		.slider:before {
+			position: absolute;
+			content: "";
+			height: 10px;
+			width: 10px;
+			left: 3px;
+			bottom: 3px;
+			background-color: white;
+			transition: .4s;
+			border-radius: 50%;
+		}
+
+		input:checked + .slider {
+			background-color: #6264a7;
+		}
+
+		input:checked + .slider:before {
+			transform: translateX(12px);
+		}
+
+		/* ---- Disclaimer ---- */
+		#disclaimerBox {
+			margin: 16px;
+			padding: 12px;
+			background: #161622;
+			border-radius: 8px;
+			border: 1px solid #3a3a52;
+			border-left: 4px solid #f9a825;
+			text-align: left;
+			display: block;
+		}
+
+		#disclaimerBox p {
+			font-size: 13px;
+			color: #ffffff;
+			margin-bottom: 8px;
+			line-height: 1.4;
+		}
+
+		#disclaimerBox p:last-child {
+			margin-bottom: 0;
+		}
+
+		#disclaimerBox strong {
+			color: #fff;
+		}
+
+		#updateBanner a:hover {
+			background: #e0e0e0 !important;
+		}
+
+		#checkUpdates:hover {
+			color: #fff;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="header">
+		<img src="icons/chat-32.png" alt="">
+		<h1 id="title">MS Teams Chat Extractor</h1>
+	</div>
+
+	<div id="updateBanner" style="display: none; background: #6264a7; padding: 10px 16px; border-bottom: 1px solid #3a3a52; color: #fff;">
+		<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+			<div style="font-weight: 600; font-size: 14px;">Update Available! <span id="newVersionTag"></span></div>
+			<span id="closeUpdateBanner" style="cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px;">&times;</span>
+		</div>
+		<div id="updateMessage" style="font-size: 12px; margin-bottom: 8px; color: #e0e0e0;"></div>
+		<a href="https://github.com/ludovictant/microsoft-webteams-chat-extractor/blob/main/UPDATE.md" target="_blank" style="display: inline-block; background: #fff; color: #6264a7; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; transition: background 0.15s;">How to Update</a>
+	</div>
+
+	<div id="disclaimerBox">
+		<p><strong style="color: #f9a825;">(!) Important:</strong> <strong>Do not switch conversations or minimize the Teams window</strong> while the extraction is running (switching browser tabs is okay).</p>
+		<p><strong>Do not use this tool simultaneously in different tabs or windows.</strong></p>
+		<p><strong>This extension is not compliant with Virtual Desktop solutions.</strong></p>
+		<p>When the progress "rebounds at" or is sticked to  the oldest message, simply click <strong>Stop and Export</strong> to finish.</p>
+	</div>
+
+	<div id="statusNudge" style="margin: 0 16px; font-size: 13px;"></div>
+
+	<div id="options">
+		<div class="btn-group">
+			<button data-days="7">Download last 7 days</button>
+			<button data-days="30">Download last 30 days</button>
+			<button data-days="90">Download last 3 months</button>
+			<button data-days="0">Download all messages</button>
+		</div>
+	</div>
+
+	<div id="status" style="display:none;">
+		<div class="spinner"></div>
+		<p id="activeChatName" style="font-weight: 600; color: #fff; margin-bottom: 4px;"></p>
+		<p id="rangeText" style="color: #8888a8; font-size: 13px; margin-bottom: 4px;"></p>
+		<div id="progressBarContainer" class="progress-container">
+			<div id="progressBar" class="progress-bar"></div>
+		</div>
+		<p id="dateDepth"></p>
+		<p id="progressText" style="margin-bottom: 8px;">Loading...</p>
+		<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
+			<button id="resumeExtractionBtn" style="display: none;">Resume Manually</button>
+			<button id="stopAndExportBtn">Stop and Export</button>
+			<button id="abortExtractionBtn" style="display: none;">Abort Extraction</button>
+		</div>
+	</div>
+
+	<div id="finalActions" style="display:none;">
+		<h2 id="finalTitle">Ready!</h2>
+		<p id="finalMsg" style="margin-bottom: 20px; color: #8888a8; font-size: 13px;"></p>
+		<div style="display: flex; flex-direction: column; gap: 10px;">
+			<button id="downloadZipBtn">
+				<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+				Download Archive (ZIP)
+			</button>
+			<button id="startNewExtractionBtn">
+				<svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+				Start New Extraction
+			</button>
+		</div>
+	</div>
+
+	<div id="toast" class="toast">Downloaded!</div>
+
+	<div class="footer">
+		<div class="footer-left">
+			<span id="checkUpdates" style="cursor: pointer; text-decoration: underline;">Check for updates</span>
+			<div style="display: flex; align-items: center; gap: 6px; margin-left: 4px;">
+				<span>Debug</span>
+				<label class="switch">
+					<input type="checkbox" id="debugToggle">
+					<span class="slider"></span>
+				</label>
+			</div>
+		</div>
+		<div class="footer-right">
+			v<span id="versionNumber"></span>
+		</div>
+	</div>
+</body>
+</html>
