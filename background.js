@@ -589,14 +589,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'ASSET_READY':
-      base64ToBlob(message.base64, 'image/png').then(blob => {
-        extractionData.urlToBlob.set(message.url, blob);
-        extractionData.processedAssets++;
-        if (extractionData.localStorageEnabled) {
-          db.saveAsset({ url: message.url, content: blob, sanitizedFilename: `asset_${Date.now()}.png` }).catch(e => console.error(e));
-        }
-        broadcastStatus();
-      });
+      const blob = base64ToBlob(message.base64, 'image/png');
+      extractionData.urlToBlob.set(message.url, blob);
+      extractionData.processedAssets++;
+      if (extractionData.localStorageEnabled) {
+        db.saveAsset({ url: message.url, content: blob, sanitizedFilename: `asset_${Date.now()}.png` }).catch(e => console.error(e));
+      }
+      broadcastStatus();
       sendResponse({ ok: true });
       break;
 
