@@ -88,7 +88,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onInstalled.addListener(() => {
   debugLog('Extension installed/updated. Running initial version check.');
   checkVersion();
+  
+  // Enable side panel on icon click
+  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+      .catch((error) => console.error('Error setting side panel behavior:', error));
+  }
 });
+
+function broadcastStatus() {
+  chrome.runtime.sendMessage({ action: 'STATUS_UPDATE_BROADCAST', data: extractionData }).catch(() => {
+    // This will fail if no extension pages (like side panel) are open, which is fine.
+  });
+}
 
   debugLog('Background script: Initializing...');
 
@@ -371,6 +383,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         processedAssets: 0,
         totalAssets: 0
       };
+      broadcastStatus();
       sendResponse({ status: 'started' });
       break;
 
@@ -383,6 +396,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         extractionData.status = (extractionData.processedAssets < extractionData.totalAssets) ? 'processing' : 'ready';
         debugLog('Extraction stopped by user. Transitioning status to:', extractionData.status);
       }
+      broadcastStatus();
       sendResponse({ status: 'stopped' });
       break;
 
@@ -392,6 +406,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'stop' }).catch(() => {});
       }
       extractionData.status = 'ready';
+      broadcastStatus();
       sendResponse({ status: 'ready' });
       break;
 
@@ -415,6 +430,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         totalAssets: 0
       };
       debugLog('Background state reset to idle and stop signal sent.');
+      broadcastStatus();
       sendResponse({ status: 'idle' });
       break;
 
@@ -449,6 +465,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       });
       extractionData.count = extractionData.messages.length;
+      broadcastStatus();
       sendResponse({ count: extractionData.count });
       break;
 
@@ -457,6 +474,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         extractionData.urlToBlob.set(message.url, blob);
         extractionData.processedAssets++;
         debugLog('Asset stored. Processed:', extractionData.processedAssets, '/', extractionData.totalAssets);
+        broadcastStatus();
       });
       sendResponse({ ok: true });
       break;
@@ -466,6 +484,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // transition can trigger once all attempts (success or fail) are done.
       extractionData.processedAssets++;
       debugLog('Asset failed to download. Skipping but incrementing counter to avoid hang. Processed:', extractionData.processedAssets, '/', extractionData.totalAssets);
+      broadcastStatus();
       sendResponse({ ok: true });
       break;
 
@@ -473,12 +492,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       extractionData.count = message.count;
       extractionData.oldestTS = message.oldestTS;
       console.log(`[PROGRESS] Oldest message parsed: ${formatLogTS(extractionData.oldestTS)} (Total: ${extractionData.count})`);
+      broadcastStatus();
       sendResponse({ ok: true });
       break;
 
     case 'STATUS_UPDATE':
       extractionData.status = message.status;
       debugLog('Status updated to:', message.status);
+      broadcastStatus();
       sendResponse({ ok: true });
       break;
 

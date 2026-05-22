@@ -47,7 +47,7 @@ Please refer to the [INSTALL.md](./INSTALL.md) file for step-by-step instruction
 2. Open the chat or channel conversation you want to extract
 3. Click the purple chat icon in the Chrome toolbar
 4. Choose a time range (e.g., "Last 7 days")
-5. Wait for the extension to scroll back and collect messages. The popup will show a progress bar and the date currently being reached.
+5. Wait for the extension to scroll back and collect messages. The side panel will show a progress bar and the date currently being reached.
 6. Once image processing finishes, the ZIP archive will **automatically download** to your computer.
 7. Click **Start New Extraction** to clear the memory and begin another session.
 

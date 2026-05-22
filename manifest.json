@@ -11,11 +11,13 @@
 		"scripting",
 		"downloads",
 		"storage",
-		"alarms"
+		"alarms",
+		"sidePanel"
 	],
 
 	"host_permissions": [
-		"https://raw.githubusercontent.com/*"
+		"https://raw.githubusercontent.com/*",
+		"https://teams.microsoft.com/*"
 	],
 
 	"background": {
@@ -30,8 +32,11 @@
 	],
 
 	"action": {
-		"default_icon": "icons/chat-32.png",
-		"default_popup": "popup.html"
+		"default_icon": "icons/chat-32.png"
+	},
+
+	"side_panel": {
+		"default_path": "sidepanel.html"
 	},
 
 	"icons": {
