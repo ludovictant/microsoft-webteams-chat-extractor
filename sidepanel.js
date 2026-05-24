@@ -499,6 +499,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		abortExtractionBtn.addEventListener('click', function() {
 			debugLog('Side panel abort button clicked.');
 			chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+				refreshHistoryList();
 				pollStatus();
 			});
 		});
@@ -514,6 +515,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		startNewExtractionBtn.addEventListener('click', function() {
 			debugLog('Side panel reset button clicked.');
 			chrome.runtime.sendMessage({ action: 'RESET_STATUS' }, function() {
+				refreshHistoryList();
 				pollStatus();
 			});
 		});
@@ -590,11 +592,13 @@ document.addEventListener('DOMContentLoaded', function () {
 					debugLog('Side panel sending FORCE_STOP_PROCESSING to background.');
 					chrome.runtime.sendMessage({ action: 'FORCE_STOP_PROCESSING' }, function(response) {
 						debugLog('Force stop processing signal confirmed by background.');
+						refreshHistoryList();
 					});
 				} else {
 					debugLog('Side panel sending STOP_EXTRACTION to background.');
 					chrome.runtime.sendMessage({ action: 'STOP_EXTRACTION' }, function(response) {
 						debugLog('Stop signal confirmed by background.');
+						refreshHistoryList();
 					});
 				}
 			});
