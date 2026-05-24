@@ -377,14 +377,72 @@ class TeamsExtractorDB {
       transaction.onerror = (e) => reject(e.target.error);
     });
   }
+
+  async getMessagesByConversation(teamsId) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['messages'], 'readonly');
+      const store = transaction.objectStore('messages');
+      const index = store.index('conv_ts_index');
+      const range = IDBKeyRange.bound([teamsId, 0], [teamsId, Infinity]);
+      const request = index.getAll(range);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async getConversation(teamsId) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['conversations'], 'readonly');
+      const store = transaction.objectStore('conversations');
+      const request = store.get(teamsId);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async getExportData(teamsId) {
+    const conversation = await this.getConversation(teamsId);
+    if (!conversation) throw new Error('Conversation not found in database');
+
+    const messages = await this.getMessagesByConversation(teamsId);
+    const assetUrls = new Set();
+    const authorToAvatarUrl = new Map();
+
+    messages.forEach(msg => {
+      if (msg.images) {
+        msg.images.forEach(img => assetUrls.add(img.url));
+      }
+      if (msg.avatarUrl && msg.author) {
+        authorToAvatarUrl.set(msg.author, msg.avatarUrl);
+        assetUrls.add(msg.avatarUrl);
+      }
+    });
+
+    const urlToBlob = new Map();
+    await Promise.all(Array.from(assetUrls).map(async url => {
+      const asset = await this.getAsset(url);
+      if (asset && asset.content) {
+        urlToBlob.set(url, asset.content);
+      }
+    }));
+
+    return {
+      title: conversation.name || 'Teams Chat Export',
+      messages: messages,
+      urlToBlob: urlToBlob,
+      authorToAvatarUrl: authorToAvatarUrl
+    };
+  }
 }
       
       
       
 const db = new TeamsExtractorDB();
 
-function renderHTML() {
-  let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${extractionData.title}</title>`;
+function renderHTML(data) {
+  let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${data.title}</title>`;
   html += `<style>
     * { margin: 0; padding: 0; box-sizing: border-box; } 
     body { font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif; background-color: #ffffff; color: #242424; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.4; } 
@@ -402,9 +460,9 @@ function renderHTML() {
     .reaction-pill { background: #ffffff; border-radius: 12px; padding: 1px 6px; font-size: 13px; display: flex; align-items: center; gap: 4px; border: 1px solid #e1e1e1; }     
     .system-message { display: flex; align-items: center; margin-bottom: 12px; margin-left: 42px; font-size: 13px; color: #616161; gap: 8px; }
     #version-tag { font-size: 10px; color: #888; margin-top: 40px; text-align: right; border-top: 1px solid #eee; padding-top: 10px; } 
-  </style></head><body><h1>${extractionData.title}</h1>`;
+  </style></head><body><h1>${data.title}</h1>`;
 
-  extractionData.messages.forEach(msg => {
+  data.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toLocaleString();
     
     if (msg.type === 'meta') {
@@ -412,13 +470,15 @@ function renderHTML() {
       return;
     }
 
-    const bestAvatarUrl = msg.avatarUrl || extractionData.authorToAvatarUrl.get(msg.author);
+    const bestAvatarUrl = msg.avatarUrl || (data.authorToAvatarUrl ? data.authorToAvatarUrl.get(msg.author) : null);
     const avatarFile = bestAvatarUrl ? getAvatarFileName(msg.author) : null;
     
     let body = msg.htmlContent;
-    msg.images.forEach(img => {
-      body = body.split(`##${img.id}##`).join(`images/${img.localFilename}`);
-    });
+    if (msg.images) {
+      msg.images.forEach(img => {
+        body = body.split(`##${img.id}##`).join(`images/${img.localFilename}`);
+      });
+    }
 
     let reactionsHtml = '';
     if (msg.reactions && msg.reactions.length > 0) {
@@ -451,9 +511,9 @@ function renderHTML() {
   return html;
 }
 
-function renderMarkdown() {
-  let md = `# ${extractionData.title}\n\n`;
-  extractionData.messages.forEach(msg => {
+function renderMarkdown(data) {
+  let md = `# ${data.title}\n\n`;
+  data.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toLocaleString();
     if (msg.type === 'meta') {
       md += `> **System:** ${msg.content} (${dateStr})\n\n`;
@@ -468,17 +528,19 @@ function renderMarkdown() {
     }
 
     md += `${content}\n\n`;
-    msg.images.forEach(img => {
-      md += `![Image](images/${img.localFilename})\n\n`;
-    });
+    if (msg.images) {
+      msg.images.forEach(img => {
+        md += `![Image](images/${img.localFilename})\n\n`;
+      });
+    }
     md += `---\n\n`;
   });
   return md;
 }
 
-function renderCSV() {
+function renderCSV(data) {
   let csv = "Timestamp,Author,Content,Reactions\n";
-  extractionData.messages.forEach(msg => {
+  data.messages.forEach(msg => {
     const dateStr = new Date(msg.timestamp).toISOString();
     if (msg.type === 'meta') {
       csv += `"${dateStr}","System","${msg.content.replace(/"/g, '""')}",""\n`;
@@ -491,16 +553,16 @@ function renderCSV() {
   return csv;
 }
 
-function renderJSON() {
+function renderJSON(data) {
   const version = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : 'unknown';
   const exportData = {
-    title: extractionData.title,
+    title: data.title,
     metadata: {
       generatedAt: new Date().toISOString(),
       version: version,
-      totalMessages: extractionData.messages.length
+      totalMessages: data.messages.length
     },
-    messages: extractionData.messages.map(msg => {
+    messages: data.messages.map(msg => {
       let content = msg.type === 'meta' ? msg.content : msg.htmlContent;
       if (msg.images) {
         msg.images.forEach(img => {
@@ -526,22 +588,22 @@ function renderJSON() {
   return JSON.stringify(exportData, null, 2);
 }
 
-async function generateZip() {
+async function generateZip(data) {
   const zip = new JSZip();
-  zip.file("index.html", renderHTML());
-  zip.file("transcript.md", renderMarkdown());
-  zip.file("transcript.csv", renderCSV());
-  zip.file("transcript.json", renderJSON());
+  zip.file("index.html", renderHTML(data));
+  zip.file("transcript.md", renderMarkdown(data));
+  zip.file("transcript.csv", renderCSV(data));
+  zip.file("transcript.json", renderJSON(data));
 
   const imgFolder = zip.folder("images");
   const writtenFiles = new Set();
 
-  extractionData.messages.forEach(msg => {
+  data.messages.forEach(msg => {
     if (msg.type === 'meta') return;
 
-    const bestAvatarUrl = msg.avatarUrl || extractionData.authorToAvatarUrl.get(msg.author);
+    const bestAvatarUrl = msg.avatarUrl || (data.authorToAvatarUrl ? data.authorToAvatarUrl.get(msg.author) : null);
     if (bestAvatarUrl && msg.author) {
-      const blob = extractionData.urlToBlob.get(bestAvatarUrl);
+      const blob = data.urlToBlob ? data.urlToBlob.get(bestAvatarUrl) : null;
       const filename = getAvatarFileName(msg.author);
       if (blob && !writtenFiles.has(filename)) {
         imgFolder.file(filename, blob);
@@ -551,7 +613,7 @@ async function generateZip() {
 
     if (msg.images) {
       msg.images.forEach(img => {
-        const blob = extractionData.urlToBlob.get(img.url);
+        const blob = data.urlToBlob ? data.urlToBlob.get(img.url) : null;
         if (blob && !writtenFiles.has(img.localFilename)) {
           imgFolder.file(img.localFilename, blob);
           writtenFiles.add(img.localFilename);
@@ -741,31 +803,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'DOWNLOAD_ZIP':
-      finalizeExtraction();
-      let sTS = 0, eTS = 0;
-      if (extractionData.messages.length > 0) {
-        sTS = extractionData.messages[0].timestamp;
-        eTS = extractionData.messages[extractionData.messages.length - 1].timestamp;
-      }
-      const fName = `${sanitizeFileName(extractionData.title)}_from_${formatFileTS(sTS)}_to_${formatFileTS(eTS)}.zip`;
-      generateZip().then(async blob => {
-        const buffer = await blob.arrayBuffer();
-        let bStr = '';
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i += 8192) {
-          bStr += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, bytes.byteLength)));
+      (async () => {
+        try {
+          let dataToExport;
+          if (message.teamsId) {
+            debugLog('DOWNLOAD_ZIP: Fetching historical data for', message.teamsId);
+            dataToExport = await db.getExportData(message.teamsId);
+          } else {
+            debugLog('DOWNLOAD_ZIP: Using active session data');
+            finalizeExtraction();
+            dataToExport = {
+              title: extractionData.title,
+              messages: extractionData.messages,
+              urlToBlob: extractionData.urlToBlob,
+              authorToAvatarUrl: extractionData.authorToAvatarUrl
+            };
+          }
+
+          let sTS = 0, eTS = 0;
+          if (dataToExport.messages.length > 0) {
+            sTS = dataToExport.messages[0].timestamp;
+            eTS = dataToExport.messages[dataToExport.messages.length - 1].timestamp;
+          }
+          const fName = `${sanitizeFileName(dataToExport.title)}_from_${formatFileTS(sTS)}_to_${formatFileTS(eTS)}.zip`;
+          
+          const blob = await generateZip(dataToExport);
+          const buffer = await blob.arrayBuffer();
+          let bStr = '';
+          const bytes = new Uint8Array(buffer);
+          for (let i = 0; i < bytes.byteLength; i += 8192) {
+            bStr += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, bytes.byteLength)));
+          }
+          
+          chrome.downloads.download({
+            url: 'data:application/zip;base64,' + btoa(bStr),
+            filename: fName,
+            conflictAction: 'uniquify',
+            saveAs: false
+          }, (id) => {
+            if (chrome.runtime.lastError) sendResponse({ error: chrome.runtime.lastError.message });
+            else sendResponse({ success: true, filename: fName });
+          });
+        } catch (err) {
+          console.error('Export failed:', err);
+          sendResponse({ error: err.message });
         }
-        chrome.downloads.download({
-          url: 'data:application/zip;base64,' + btoa(bStr),
-          filename: fName,
-          conflictAction: 'uniquify',
-          saveAs: false
-        }, (id) => {
-          if (chrome.runtime.lastError) sendResponse({ error: chrome.runtime.lastError.message });
-          else sendResponse({ success: true, filename: fName });
-        });
-      }).catch(err => sendResponse({ error: err.message }));
-      return true;
+      })();
+      return true; // Keep channel open for async response
 
     case 'HEARTBEAT':
       sendResponse({ status: 'alive' });

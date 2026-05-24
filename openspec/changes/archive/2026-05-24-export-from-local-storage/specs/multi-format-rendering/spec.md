@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: HTML Rendering
 The system SHALL generate an `index.html` file that references local assets and preserves the Teams visual style. The rendering engine SHALL accept a conversation data object as input, making it independent of the active extraction session state.

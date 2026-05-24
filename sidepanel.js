@@ -108,6 +108,54 @@ document.addEventListener('DOMContentLoaded', function () {
 						dateCell.textContent = formatDateTime(conv.lastCrawlTimestamp);
 						tr.appendChild(dateCell);
 
+						var actionCell = document.createElement('td');
+						actionCell.style.textAlign = 'right';
+						var exportBtn = document.createElement('button');
+						exportBtn.className = 'history-export-btn';
+						exportBtn.title = 'Export this conversation';
+						exportBtn.style.background = 'transparent';
+						exportBtn.style.border = 'none';
+						exportBtn.style.cursor = isExportingArchive ? 'not-allowed' : 'pointer';
+						exportBtn.style.color = '#6264a7';
+						exportBtn.style.padding = '2px';
+						exportBtn.style.display = 'inline-flex';
+						exportBtn.style.alignItems = 'center';
+						exportBtn.style.justifyContent = 'center';
+						exportBtn.style.opacity = isExportingArchive ? '0.5' : '1';
+						exportBtn.disabled = isExportingArchive;
+						exportBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+						
+						exportBtn.addEventListener('click', function(e) {
+							e.stopPropagation();
+							if (isExportingArchive) return;
+							
+							isExportingArchive = true;
+							// Disable all buttons immediately
+							document.querySelectorAll('.history-export-btn').forEach(btn => {
+								btn.disabled = true;
+								btn.style.opacity = '0.5';
+								btn.style.cursor = 'not-allowed';
+							});
+							
+							const originalHTML = exportBtn.innerHTML;
+							exportBtn.innerHTML = '<span class="spinner-tiny"></span>';
+							
+							chrome.runtime.sendMessage({ action: 'DOWNLOAD_ZIP', teamsId: conv.teamsId }, function(response) {
+								isExportingArchive = false;
+								// Refresh list to restore button states or do it manually
+								refreshHistoryList();
+								
+								if (response && response.success) {
+									showToast('Export started!');
+								} else {
+									alert('Export failed: ' + (response ? response.error : 'Unknown error'));
+								}
+							});
+						});
+						
+						actionCell.appendChild(exportBtn);
+						tr.appendChild(actionCell);
+
 						historyBody.appendChild(tr);
 					});
 				}
@@ -134,6 +182,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	var isProcessingRequest = false;
+	var isExportingArchive = false;
 	var currentDebugMode = false;
 	var currentStatus = 'unknown';
 	var resumeMessageTimeout = null;

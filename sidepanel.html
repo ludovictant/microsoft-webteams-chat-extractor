@@ -145,6 +145,16 @@
 			to { transform: rotate(360deg); }
 		}
 
+		.spinner-tiny {
+			display: inline-block;
+			width: 14px;
+			height: 14px;
+			border: 2px solid rgba(98, 100, 167, 0.2);
+			border-top-color: #6264a7;
+			border-radius: 50%;
+			animation: spin 0.8s linear infinite;
+		}
+
 		#status p {
 			font-size: 13px;
 		}
@@ -629,13 +639,14 @@
 					<tr>
 						<th style="width: 25%;">Conversation</th>
 						<th style="width: 10%; text-align: center;">Qty</th>
-						<th style="width: 35%; text-align: center;">Message Range</th>
-						<th style="width: 30%; text-align: right;">Last crawl</th>
+						<th style="width: 30%; text-align: center;">Message Range</th>
+						<th style="width: 25%; text-align: right;">Last crawl</th>
+						<th style="width: 10%; text-align: right;">Action</th>
 					</tr>
 				</thead>
 				<tbody id="historyBody">
 					<tr>
-						<td colspan="4" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td>
+						<td colspan="5" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td>
 					</tr>
 				</tbody>
 			</table>
