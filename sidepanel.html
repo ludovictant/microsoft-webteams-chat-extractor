@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
 <head>
+	<meta charset="UTF-8">
 	<title>MS Teams Chat Extractor</title>
 	<script src="sidepanel.js"></script>
 	<style>
@@ -420,6 +421,39 @@
 			letter-spacing: 0.5px;
 		}
 
+		#historyTable th.sortable {
+			cursor: pointer;
+			transition: all 0.2s;
+		}
+
+		#historyTable th.sortable:hover {
+			color: #6264a7;
+		}
+
+		#historyTable th.sortable.asc, 
+		#historyTable th.sortable.desc {
+			font-weight: 800;
+			color: #e0e0e0;
+		}
+
+		#historyTable th.sortable.asc::after {
+			content: ' \25B2';
+			opacity: 1;
+			color: #6264a7;
+			font-size: 10px;
+			display: inline-block;
+			vertical-align: middle;
+		}
+
+		#historyTable th.sortable.desc::after {
+			content: ' \25BC';
+			opacity: 1;
+			color: #6264a7;
+			font-size: 10px;
+			display: inline-block;
+			vertical-align: middle;
+		}
+
 		#historyTable td {
 			padding: 8px 0;
 			border-bottom: 1px solid #2b2b3d;
@@ -435,11 +469,11 @@
 
 		.history-name-cell {
 			font-weight: 600;
-			color: #6264a7;
+			color: #e0e0e0;
 		}
 
 		.history-meta-cell {
-			color: #8888a8;
+			color: #e0e0e0;
 			text-align: right;
 		}
 
@@ -637,10 +671,10 @@
 			<table id="historyTable">
 				<thead>
 					<tr>
-						<th style="width: 25%;">Conversation</th>
-						<th style="width: 10%; text-align: center;">Qty</th>
+						<th style="width: 25%;" class="sortable" data-sort="name">Conversation</th>
+						<th style="width: 10%; text-align: center;" class="sortable" data-sort="count">Qty</th>
 						<th style="width: 30%; text-align: center;">Message Range</th>
-						<th style="width: 25%; text-align: right;">Last crawl</th>
+						<th style="width: 25%; text-align: right;" class="sortable desc" data-sort="date">Last crawl</th>
 						<th style="width: 10%; text-align: right;">Action</th>
 					</tr>
 				</thead>

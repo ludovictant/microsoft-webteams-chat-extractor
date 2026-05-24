@@ -79,10 +79,28 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (response && response.success) {
 				var convs = response.conversations || [];
 				if (convs.length === 0) {
-					historyBody.innerHTML = '<tr><td colspan="4" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td></tr>';
+					historyBody.innerHTML = '<tr><td colspan="5" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td></tr>';
 				} else {
+					// Apply sorting
+					convs.sort((a, b) => {
+						var valA, valB;
+						if (currentSortColumn === 'name') {
+							valA = (a.name || '').toLowerCase();
+							valB = (b.name || '').toLowerCase();
+						} else if (currentSortColumn === 'count') {
+							valA = a.messageCount || 0;
+							valB = b.messageCount || 0;
+						} else { // date
+							valA = a.lastCrawlTimestamp || 0;
+							valB = b.lastCrawlTimestamp || 0;
+						}
+
+						if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+						if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+						return 0;
+					});
+
 					historyBody.innerHTML = '';
-					convs.sort((a, b) => (b.lastCrawlTimestamp || 0) - (a.lastCrawlTimestamp || 0));
 					convs.forEach(function(conv) {
 						var tr = document.createElement('tr');
 						
@@ -183,6 +201,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	var isProcessingRequest = false;
 	var isExportingArchive = false;
+	var currentSortColumn = 'date';
+	var currentSortDirection = 'desc';
 	var currentDebugMode = false;
 	var currentStatus = 'unknown';
 	var resumeMessageTimeout = null;
@@ -261,6 +281,35 @@ document.addEventListener('DOMContentLoaded', function () {
 		toast.classList.add('show');
 		setTimeout(function () { toast.classList.remove('show'); }, 2000);
 	}
+
+	function handleHeaderClick(e) {
+		var th = e.target.closest('th.sortable');
+		if (!th) return;
+
+		var column = th.getAttribute('data-sort');
+		if (currentSortColumn === column) {
+			currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+		} else {
+			currentSortColumn = column;
+			currentSortDirection = 'asc';
+			if (column === 'date' || column === 'count') {
+				currentSortDirection = 'desc';
+			}
+		}
+
+		// Update UI classes
+		document.querySelectorAll('#historyTable th.sortable').forEach(h => {
+			h.classList.remove('asc', 'desc');
+		});
+		th.classList.add(currentSortDirection);
+
+		refreshHistoryList();
+	}
+
+	// Attach sort listeners
+	document.querySelectorAll('#historyTable th.sortable').forEach(th => {
+		th.addEventListener('click', handleHeaderClick);
+	});
 
 	function updateUI(data) {
 		debugLog('Updating UI with state:', data.status, data);
