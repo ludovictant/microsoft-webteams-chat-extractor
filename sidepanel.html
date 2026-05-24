@@ -591,6 +591,40 @@
 			color: #fff;
 		}
 
+		/* ---- Success Nudge ---- */
+		#telemetryNudge {
+			display: none;
+			margin: 16px;
+			padding: 12px;
+			background: #2b2b3d;
+			border-radius: 8px;
+			border: 1px solid #3a3a52;
+			border-left: 4px solid #6264a7;
+			text-align: left;
+		}
+		#telemetryNudge p {
+			font-size: 13px;
+			color: #ffffff;
+			margin-bottom: 10px;
+			line-height: 1.4;
+		}
+		.nudge-actions {
+			display: flex;
+			gap: 8px;
+		}
+		.nudge-actions button {
+			padding: 4px 10px;
+			font-size: 11px;
+			cursor: pointer;
+			border-radius: 4px;
+			border: none;
+			font-weight: 600;
+		}
+		.nudge-accept { background: #6264a7; color: white; }
+		.nudge-decline { background: #4a4a62; color: #ccc; }
+		.nudge-accept:hover { background: #505291; }
+		.nudge-decline:hover { background: #3a3a52; }
+
 		#updateBanner a:hover {
 			background: #e0e0e0 !important;
 		}
@@ -624,6 +658,14 @@
 	</div>
 
 	<div id="statusNudge" style="margin: 0 16px; font-size: 13px;"></div>
+
+	<div id="telemetryNudge">
+		<p><strong>Help us improve!</strong> Would you like to share anonymous usage stats? No message content or names are ever sent.</p>
+		<div class="nudge-actions">
+			<button id="acceptTelemetry" class="nudge-accept">Yes, I agree</button>
+			<button id="declineTelemetry" class="nudge-decline">No thanks</button>
+		</div>
+	</div>
 
 	<div id="options">
 		<div class="btn-group">
@@ -729,6 +771,23 @@
 				<span>Debug</span>
 				<label class="switch">
 					<input type="checkbox" id="debugToggle">
+					<span class="slider"></span>
+				</label>
+			</div>
+			<div style="display: flex; align-items: center; gap: 6px; margin-left: 4px;">
+				<span style="display: flex; align-items: center;">
+					Privacy
+					<span class="info-icon" style="margin-left: 4px; background: #4a4a62; color: #fff; width: 12px; height: 12px; font-size: 9px;">
+						i
+						<span class="tooltip" style="bottom: 150%; left: -20px; width: 220px;">
+							Sending anonymous usage stats helps us improve the tool. No personal data or message content is ever collected.<br><br>
+							<strong>Switch OFF:</strong> No data sharing.<br>
+							<strong>Switch ON:</strong> Help us improve the tool.
+						</span>
+					</span>
+				</span>
+				<label class="switch">
+					<input type="checkbox" id="telemetryToggle">
 					<span class="slider"></span>
 				</label>
 			</div>

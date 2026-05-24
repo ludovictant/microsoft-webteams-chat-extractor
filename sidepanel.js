@@ -23,6 +23,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	var incrementalBtn = document.getElementById('incrementalBtn');
 	var clearStorageBtn = document.getElementById('clearStorageBtn');
 	var historyBody = document.getElementById('historyBody');
+	var telemetryNudge = document.getElementById('telemetryNudge');
+	var acceptTelemetry = document.getElementById('acceptTelemetry');
+	var declineTelemetry = document.getElementById('declineTelemetry');
+	var telemetryToggle = document.getElementById('telemetryToggle');
 	
 	// Initial refresh
 	refreshHistoryList();
@@ -173,6 +177,12 @@ document.addEventListener('DOMContentLoaded', function () {
 								
 								if (response && response.success) {
 									showToast('Export started!');
+									// Task 3.3: Show nudge after success
+									chrome.storage.local.get(['hasInteractedWithNudge'], function(res) {
+										if (!res.hasInteractedWithNudge && telemetryNudge) {
+											telemetryNudge.style.display = 'block';
+										}
+									});
 								} else {
 									alert('Export failed: ' + (response ? response.error : 'Unknown error'));
 								}
@@ -259,6 +269,47 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (localStorageToggle) {
 			localStorageToggle.checked = !!result.localStorageEnabled;
 			updateLocalStorageVisibility();
+		}
+	});
+
+	// Handle telemetry nudge
+	if (acceptTelemetry) {
+		acceptTelemetry.addEventListener('click', function() {
+			chrome.storage.local.set({ telemetryOptIn: true, hasInteractedWithNudge: true }, function() {
+				if (telemetryNudge) telemetryNudge.style.display = 'none';
+				if (telemetryToggle) telemetryToggle.checked = true;
+				showToast('Thank you for your support!');
+				chrome.runtime.sendMessage({ action: 'SYNC_TELEMETRY' });
+			});
+		});
+	}
+
+	if (declineTelemetry) {
+		declineTelemetry.addEventListener('click', function() {
+			chrome.storage.local.set({ telemetryOptIn: false, hasInteractedWithNudge: true }, function() {
+				if (telemetryNudge) telemetryNudge.style.display = 'none';
+				if (telemetryToggle) telemetryToggle.checked = false;
+			});
+		});
+	}
+
+	// Handle telemetry toggle
+	if (telemetryToggle) {
+		telemetryToggle.addEventListener('change', function() {
+			var isEnabled = telemetryToggle.checked;
+			chrome.storage.local.set({ telemetryOptIn: isEnabled, hasInteractedWithNudge: true }, function() {
+				debugLog('Telemetry opt-in set to:', isEnabled);
+				if (isEnabled) {
+					chrome.runtime.sendMessage({ action: 'SYNC_TELEMETRY' });
+				}
+			});
+		});
+	}
+
+	// Initial load of telemetry preference
+	chrome.storage.local.get(['telemetryOptIn'], function(result) {
+		if (telemetryToggle) {
+			telemetryToggle.checked = !!result.telemetryOptIn;
 		}
 	});
 
@@ -511,6 +562,13 @@ document.addEventListener('DOMContentLoaded', function () {
 				showToast('Downloaded!');
 				downloadZipBtn.disabled = true;
 				downloadZipBtn.textContent = 'Downloaded!';
+				
+				// Task 3.3: Show nudge after success
+				chrome.storage.local.get(['hasInteractedWithNudge'], function(res) {
+					if (!res.hasInteractedWithNudge && telemetryNudge) {
+						telemetryNudge.style.display = 'block';
+					}
+				});
 			} else if (response && response.error) {
 				console.error('ZIP generation or download failed on background:', response.error);
 				alert('Export failed: ' + response.error);

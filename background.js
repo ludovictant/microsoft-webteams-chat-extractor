@@ -3,6 +3,13 @@ importScripts('lib/jszip.min.js');
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/ludovictant/microsoft-webteams-chat-extractor/main/version.json';
 
 let currentDebugMode = false;
+async function sha256(message) {
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function debugLog(...args) {
   if (currentDebugMode) console.log('[DEBUG]', ...args);
 }
@@ -74,16 +81,21 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Update Check Alarm Setup
 const UPDATE_ALARM_NAME = 'check-for-updates';
+const TELEMETRY_ALARM_NAME = 'sync-telemetry';
+
 chrome.alarms.create(UPDATE_ALARM_NAME, { periodInMinutes: 1440 });
+chrome.alarms.create(TELEMETRY_ALARM_NAME, { periodInMinutes: 1440 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === UPDATE_ALARM_NAME) {
     checkVersion();
+  } else if (alarm.name === TELEMETRY_ALARM_NAME) {
+    syncTelemetry();
   }
 });
 
 // Check on install/startup
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   debugLog('Extension installed/updated. Running initial version check.');
   checkVersion();
   
@@ -91,12 +103,113 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
       .catch((error) => console.error('Error setting side panel behavior:', error));
   }
+
+  // Task 1.1: Generate and persist instanceId if it doesn't exist
+  chrome.storage.local.get(['instanceId'], (result) => {
+    if (!result.instanceId) {
+      const newId = self.crypto.randomUUID();
+      chrome.storage.local.set({ instanceId: newId }, () => {
+        debugLog('Generated new instanceId:', newId);
+      });
+    } else {
+      debugLog('Using existing instanceId:', result.instanceId);
+    }
+  });
 });
 
 function broadcastStatus() {
   chrome.runtime.sendMessage({ action: 'STATUS_UPDATE_BROADCAST', data: extractionData }).catch(() => {
     // This will fail if no extension pages (like side panel) are open, which is fine.
   });
+}
+
+async function recordTelemetryEvent(eventType, eventData) {
+  try {
+    const { instanceId } = await chrome.storage.local.get(['instanceId']);
+    if (!instanceId) return; // Should not happen
+
+    const instanceIdHash = await sha256(instanceId);
+    
+    let convIdHash = null;
+    if (eventData.teamsId) {
+      convIdHash = await sha256(instanceId + eventData.teamsId);
+    }
+
+    const scopeMap = {
+      '0': 'all',
+      '7': '7_days',
+      '30': '30_days',
+      '90': '90_days',
+      '-1': 'incremental'
+    };
+
+    const extractionScope = scopeMap[String(eventData.days)] || 'all';
+
+    const event = {
+      timestamp: Date.now(),
+      event_type: eventType,
+      instance_id_hash: instanceIdHash,
+      conv_id_hash: convIdHash,
+      event_source: eventData.source || 'live_session',
+      extraction_scope: extractionScope,
+      message_count: eventData.messageCount || 0,
+      status: eventData.status || 'success'
+    };
+
+    await db.saveTelemetryEvent(event);
+    debugLog('Recorded telemetry event:', eventType, extractionScope);
+
+    // Trigger sync if opt-in is active
+    const { telemetryOptIn } = await chrome.storage.local.get(['telemetryOptIn']);
+    if (telemetryOptIn) {
+      syncTelemetry();
+    }
+  } catch (err) {
+    console.error('Failed to record telemetry:', err);
+  }
+}
+
+async function syncTelemetry() {
+  try {
+    const { telemetryOptIn } = await chrome.storage.local.get(['telemetryOptIn']);
+    if (!telemetryOptIn) {
+      debugLog('Telemetry sync skipped (opt-out)');
+      return;
+    }
+
+    const unsynced = await db.getUnsyncedTelemetry();
+    if (unsynced.length === 0) {
+      debugLog('No unsynced telemetry records found.');
+      return;
+    }
+
+    debugLog(`Syncing ${unsynced.length} telemetry records...`);
+
+    // Placeholder URL - change to actual telemetry endpoint
+    const TELEMETRY_ENDPOINT = 'https://api.teams-extractor.com/v1/telemetry';
+
+    // Since we don't have a real server, we'll just log and mark as synced in DEBUG mode
+    // or if a specific flag is set. For production, this fetch would be active.
+    
+    /*
+    const response = await fetch(TELEMETRY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(unsynced)
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    */
+
+    // For now, simulate success
+    const ids = unsynced.map(r => r.id);
+    await db.markTelemetrySynced(ids);
+    debugLog('Telemetry sync successful (simulated)');
+    
+    // Also purge old data
+    await db.purgeOldTelemetry(90);
+  } catch (err) {
+    console.error('Telemetry sync failed:', err);
+  }
 }
 
 /**
@@ -173,7 +286,7 @@ function base64ToBlob(base64, type) {
 class TeamsExtractorDB {
   constructor() {
     this.dbName = 'TeamsExtractorDB';
-    this.version = 2;
+    this.version = 3;
     this.db = null;
   }
 
@@ -219,7 +332,81 @@ class TeamsExtractorDB {
         if (!db.objectStoreNames.contains('assets')) {
           db.createObjectStore('assets', { keyPath: 'url' });
         }
+
+        // Telemetry store
+        if (!db.objectStoreNames.contains('telemetry')) {
+          const telemetryStore = db.createObjectStore('telemetry', { keyPath: 'id', autoIncrement: true });
+          telemetryStore.createIndex('is_synced', 'is_synced', { unique: false });
+        }
       };
+    });
+  }
+
+  async saveTelemetryEvent(event) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['telemetry'], 'readwrite');
+      const store = transaction.objectStore('telemetry');
+      const request = store.put({ ...event, is_synced: 0 }); // 0 for unsynced
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async getUnsyncedTelemetry() {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['telemetry'], 'readonly');
+      const store = transaction.objectStore('telemetry');
+      const index = store.index('is_synced');
+      const request = index.getAll(IDBKeyRange.only(0)); // Query for 0
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async markTelemetrySynced(ids) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['telemetry'], 'readwrite');
+      const store = transaction.objectStore('telemetry');
+      
+      ids.forEach(id => {
+        const getRequest = store.get(id);
+        getRequest.onsuccess = () => {
+          const data = getRequest.result;
+          if (data) {
+            data.is_synced = 1; // 1 for synced
+            store.put(data);
+          }
+        };
+      });
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async purgeOldTelemetry(days = 90) {
+    const db = await this.open();
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['telemetry'], 'readwrite');
+      const store = transaction.objectStore('telemetry');
+      const request = store.openCursor();
+      
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          if (cursor.value.is_synced === 1 && cursor.value.timestamp < cutoff) {
+            cursor.delete();
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      request.onerror = (e) => reject(e.target.error);
     });
   }
 
@@ -694,6 +881,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         chrome.tabs.sendMessage(extractionData.activeTabId, { action: 'stop' }).catch(() => {});
         finalizeExtraction();
         extractionData.status = (extractionData.processedAssets < extractionData.totalAssets) ? 'processing' : 'ready';
+        
+        // Task 2.3: Record telemetry
+        recordTelemetryEvent('extraction', {
+          teamsId: extractionData.teamsId,
+          days: extractionData.days,
+          messageCount: extractionData.messages.length,
+          status: 'stopped'
+        });
       }
       broadcastStatus();
       sendResponse({ status: 'stopped' });
@@ -814,6 +1009,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'FINISH_EXTRACTION':
       finalizeExtraction();
       extractionData.status = 'processing';
+      
+      // Task 2.3: Record telemetry
+      recordTelemetryEvent('extraction', {
+        teamsId: extractionData.teamsId,
+        days: extractionData.days,
+        messageCount: extractionData.messages.length,
+        status: 'success'
+      });
+      
       sendResponse({ status: extractionData.status });
       break;
 
@@ -868,6 +1072,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               if (message.teamsId) {
                 await db.updateLastDownload(message.teamsId);
               }
+              
+              // Task 2.4: Record telemetry
+              recordTelemetryEvent('download', {
+                teamsId: message.teamsId || extractionData.teamsId,
+                days: message.teamsId ? 0 : extractionData.days,
+                messageCount: dataToExport.messages.length,
+                source: message.teamsId ? 'history_list' : 'live_session',
+                status: 'success'
+              });
+
               sendResponse({ success: true, filename: fName });
             }
           });
@@ -956,6 +1170,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: false, error: err.message });
       });
       return true;
+
+    case 'SYNC_TELEMETRY':
+      syncTelemetry();
+      sendResponse({ ok: true });
+      break;
 
     default:
       sendResponse({ error: 'Unknown action' });
