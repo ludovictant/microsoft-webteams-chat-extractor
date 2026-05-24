@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	var disclaimerBox = document.getElementById('disclaimerBox');
 	var retryStatus = document.getElementById('retryStatus');
 	var localStorageToggle = document.getElementById('localStorageToggle');
+	var incrementalBtn = document.getElementById('incrementalBtn');
+	var incrementalTooltip = document.getElementById('incrementalTooltip');
 	
 	var clearStorageBtn = document.getElementById('clearStorageBtn');
 	
@@ -167,6 +169,20 @@ document.addEventListener('DOMContentLoaded', function () {
 	function updateLocalStorageVisibility() {
 		if (!localStorageToggle || !localStorageContent) return;
 		var isEnabled = localStorageToggle.checked;
+
+		// Update incremental button state and tooltip
+		if (incrementalBtn) {
+			incrementalBtn.disabled = !isEnabled;
+		}
+		if (incrementalTooltip) {
+			incrementalTooltip.classList.add('visible');
+			if (isEnabled) {
+				incrementalTooltip.textContent = 'Fetch only new messages added since the last crawl.';
+			} else {
+				incrementalTooltip.textContent = "Extract only new messages since the last crawl. Enable 'Local storage' below to use this feature.";
+			}
+		}
+
 		if (isEnabled) {
 			localStorageContent.style.maxHeight = '500px';
 			refreshHistoryList();
@@ -227,10 +243,13 @@ document.addEventListener('DOMContentLoaded', function () {
 			currentStatus = 'idle';
 
 			// Re-enable trigger buttons only if no other tab is busy
-			optionsDiv.querySelectorAll('button').forEach(function(b) { 
-				b.disabled = isAnotherTabBusy; 
+			optionsDiv.querySelectorAll('button').forEach(function(b) {
+				if (b.id === 'incrementalBtn') {
+					b.disabled = isAnotherTabBusy || (localStorageToggle ? !localStorageToggle.checked : true);
+				} else {
+					b.disabled = isAnotherTabBusy;
+				}
 			});
-
 			if (statusNudge) {
 				if (isAnotherTabBusy) {
 					statusNudge.innerHTML = '<div style="margin-bottom: 16px;"><strong style="color: #d32f2f;">(!) Notice:</strong> <span style="color: #ffffff;">An extraction is already active in another tab. You can monitor its progress here, but you cannot start a new one until it finishes.</span></div>';

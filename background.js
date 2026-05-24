@@ -99,6 +99,22 @@ function broadcastStatus() {
   });
 }
 
+/**
+ * Ensures an asset URL is tracked exactly once in totalAssets.
+ * Returns true if this is a NEW discovery.
+ */
+function registerAsset(url) {
+  if (!url || url.startsWith('data:') || extractionData.seenAssetUrls.has(url)) return false;
+  extractionData.seenAssetUrls.add(url);
+  // We only increment totalAssets if we don't ALREADY have the blob in memory
+  // (e.g., from a previous CHECK_ASSET success in the same session)
+  if (!extractionData.urlToBlob.has(url)) {
+    extractionData.totalAssets++;
+    return true;
+  }
+  return false;
+}
+
 debugLog('Background script: Initializing...');
 
 let extractionData = {
@@ -275,6 +291,17 @@ class TeamsExtractorDB {
       const transaction = db.transaction(['assets'], 'readonly');
       const store = transaction.objectStore('assets');
       const request = store.count(url);
+      request.onsuccess = () => resolve(request.result > 0);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async isMessageStored(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['messages'], 'readonly');
+      const store = transaction.objectStore('messages');
+      const request = store.count(id);
       request.onsuccess = () => resolve(request.result > 0);
       request.onerror = (e) => reject(e.target.error);
     });
@@ -624,21 +651,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           extractionData.authorToAvatarUrl.set(msg.author, msg.avatarUrl);
         }
         const finalAvatarUrl = msg.avatarUrl || (msg.author ? extractionData.authorToAvatarUrl.get(msg.author) : null);
-        if (finalAvatarUrl && !extractionData.seenAssetUrls.has(finalAvatarUrl)) {
-          extractionData.seenAssetUrls.add(finalAvatarUrl);
-          if (!extractionData.urlToBlob.has(finalAvatarUrl)) {
-            extractionData.totalAssets++;
-          }
-        }
+        registerAsset(finalAvatarUrl);
+
         if (msg.images) {
           msg.images.forEach((img, idx) => {
             img.localFilename = `msg_${formatFileTS(msg.timestamp)}_${sanitizeFileName(msg.id)}_${idx}.png`;
-            if (!extractionData.seenAssetUrls.has(img.url)) {
-              extractionData.seenAssetUrls.add(img.url);
-              if (!extractionData.urlToBlob.has(img.url)) {
-                extractionData.totalAssets++;
-              }
-            }
+            registerAsset(img.url);
           });
         }
       });
@@ -658,10 +676,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'ASSET_READY':
       const blob = base64ToBlob(message.base64, 'image/png');
-      extractionData.urlToBlob.set(message.url, blob);
-      extractionData.processedAssets++;
-      if (extractionData.localStorageEnabled) {
-        db.saveAsset({ url: message.url, content: blob, sanitizedFilename: `asset_${Date.now()}.png` }).catch(e => console.error(e));
+      if (!extractionData.urlToBlob.has(message.url)) {
+        extractionData.urlToBlob.set(message.url, blob);
+        // Register it so totalAssets increments correctly for fresh downloads
+        registerAsset(message.url);
+        extractionData.processedAssets++;
+        if (extractionData.localStorageEnabled) {
+          db.saveAsset({ url: message.url, content: blob, sanitizedFilename: `asset_${Date.now()}.png` }).catch(e => console.error(e));
+        }
       }
       broadcastStatus();
       sendResponse({ ok: true });
@@ -743,6 +765,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       checkVersion(true).then(result => sendResponse(result));
       return true;
 
+    case 'CHECK_MESSAGE':
+      if (extractionData.localStorageEnabled) {
+        db.isMessageStored(message.id).then(stored => {
+          sendResponse({ stored: stored });
+        }).catch(err => {
+          console.error('Failed to check message in DB:', err);
+          sendResponse({ stored: false });
+        });
+      } else {
+        sendResponse({ stored: false });
+      }
+      return true;
+
     case 'CHECK_ASSET':
       if (extractionData.localStorageEnabled) {
         db.getAsset(message.url).then(asset => {
@@ -750,8 +785,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             debugLog('Asset found in IndexedDB, skipping download:', message.url);
             if (!extractionData.urlToBlob.has(message.url)) {
               extractionData.urlToBlob.set(message.url, asset.content);
-              extractionData.seenAssetUrls.add(message.url);
-              extractionData.totalAssets++;
+              // Register it so totalAssets increments correctly if not already seen
+              registerAsset(message.url);
               extractionData.processedAssets++;
               broadcastStatus();
             }

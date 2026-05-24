@@ -498,6 +498,40 @@
 			opacity: 1;
 		}
 
+		/* ---- Tooltip for Disabled Buttons ---- */
+		.btn-tooltip-wrapper {
+			position: relative;
+			display: block;
+			width: 100%;
+		}
+
+		.btn-tooltip-text {
+			visibility: hidden;
+			width: 200px;
+			background-color: #333;
+			color: #fff;
+			text-align: center;
+			border-radius: 6px;
+			padding: 8px;
+			position: absolute;
+			z-index: 100;
+			bottom: 110%;
+			left: 50%;
+			transform: translateX(-50%);
+			opacity: 0;
+			transition: opacity 0.3s;
+			font-size: 11px;
+			line-height: 1.4;
+			pointer-events: none;
+			border: 1px solid #444;
+			box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+		}
+
+		.btn-tooltip-wrapper:hover .btn-tooltip-text.visible {
+			visibility: visible;
+			opacity: 1;
+		}
+
 		/* ---- Disclaimer ---- */
 		#disclaimerBox {
 			margin: 16px;
@@ -561,10 +595,26 @@
 
 	<div id="options">
 		<div class="btn-group">
-			<button data-days="7">Download last 7 days</button>
-			<button data-days="30">Download last 30 days</button>
-			<button data-days="90">Download last 3 months</button>
-			<button data-days="0">Download all messages</button>
+			<div class="btn-tooltip-wrapper">
+				<div class="btn-tooltip-text visible">Fetch messages from the last 7 days only.</div>
+				<button data-days="7">Download last 7 days</button>
+			</div>
+			<div class="btn-tooltip-wrapper">
+				<div class="btn-tooltip-text visible">Fetch messages from the last 30 days only.</div>
+				<button data-days="30">Download last 30 days</button>
+			</div>
+			<div class="btn-tooltip-wrapper">
+				<div class="btn-tooltip-text visible">Fetch messages from the last 90 days only.</div>
+				<button data-days="90">Download last 3 months</button>
+			</div>
+			<div class="btn-tooltip-wrapper">
+				<div class="btn-tooltip-text visible">Fetch the entire visible chat history from Teams.</div>
+				<button data-days="0">Download all messages</button>
+			</div>
+			<div id="incrementalBtnWrapper" class="btn-tooltip-wrapper">
+				<div id="incrementalTooltip" class="btn-tooltip-text">Extract only new messages since the last crawl. Enable 'Local storage' below to use this feature.</div>
+				<button id="incrementalBtn" data-days="-1">Download recent messages</button>
+			</div>
 		</div>
 
 		<div id="localStorageHeader" style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px; margin-top: 16px;">

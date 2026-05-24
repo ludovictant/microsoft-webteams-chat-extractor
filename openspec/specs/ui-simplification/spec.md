@@ -13,12 +13,17 @@ The system SHALL provide a simplified extraction interface by removing redundant
 
 #### Scenario: Simplified extraction triggers
 - **WHEN** the extension side panel is opened
-- **THEN** the extraction buttons SHALL be labeled: "Download last 7 days", "Download last 30 days", "Download last 3 months", and "Download all messages".
+- **THEN** the extraction buttons SHALL be labeled: "Download recent messages", "Download last 7 days", "Download last 30 days", "Download last 3 months", and "Download all messages".
 - **AND** the "Time range" and "Settings" section labels SHALL NOT be displayed.
 - **AND** the "Important" disclaimer SHALL be visible at the top of the layout.
 - **AND** the disclaimer SHALL include a warning against using the tool simultaneously in different tabs or windows.
 - **AND** the Debug Mode switch SHALL be positioned below the disclaimer and above the extraction trigger buttons.
 - **AND** the header title SHALL be "MS Teams Chat Extractor".
+
+#### Scenario: Incremental extraction trigger availability
+- **WHEN** the "Local storage" toggle is "Off"
+- **THEN** the "Download recent messages" button SHALL be disabled.
+- **AND** it SHALL display a tooltip explaining that local storage must be enabled for incremental extraction.
 
 #### Scenario: Local storage toggle and history visibility
 - **WHEN** the side panel is opened for the FIRST time

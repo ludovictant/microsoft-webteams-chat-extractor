@@ -30,6 +30,12 @@
     });
   }
 
+  async function isMessageStored(id) {
+    if (!globalLocalStorageEnabled) return false;
+    const response = await sendToBackground('CHECK_MESSAGE', { id: id });
+    return response && response.stored;
+  }
+
   function startHeartbeat() {
     if (heartbeatInterval) return;
     heartbeatInterval = setInterval(function() {
@@ -533,6 +539,7 @@
   async function scrollAndExtract(days, sort, localStorageEnabled) {
     stopRequested = false;
     forceResumeRequested = false;
+    var incrementalDone = false;
     globalLocalStorageEnabled = !!localStorageEnabled;
     fetchedAssets.clear();
     startHeartbeat();
@@ -576,8 +583,6 @@
         var meImg = meControl.querySelector('img.fui-Avatar__image');
         if (meImg && meImg.src) {
           connectedUserAvatarUrl = meImg.src;
-          // Pre-fetch immediately so it's available for the ZIP even if matching takes time
-          fetchAndSendAsset(connectedUserAvatarUrl, globalLocalStorageEnabled);
         }
         debugLog('Extracted connected user info:', { connectedUserName, connectedUserAvatarUrl, ariaLabel });
       }
@@ -594,9 +599,20 @@
         var lastValidTS = null;
 
         for (var i = 0; i < nodes.length; i++) {
+          if (stopRequested || incrementalDone) break;
           var node = nodes[i];
           var id = getMessageId(node);
           if (id && !processedIds.has(id)) {
+            // Incremental check: if days == -1, stop if we see an existing message
+            if (days === -1) {
+              const stored = await isMessageStored(id);
+              if (stored) {
+                debugLog('Incremental mode: Found already stored message, triggering stop:', id);
+                incrementalDone = true;
+                break;
+              }
+            }
+
             processedIds.add(id); 
             var mdo = await serializeMessage(node);
             if (mdo) {
@@ -628,7 +644,7 @@
       };
 
       // Ensure we are at the bottom if we plan to scroll back in time
-      if (days >= 0) {
+      if (days >= 0 || days === -1) {
         var scrollContainer = findScrollContainer(list);
         if (scrollContainer) {
           debugLog('Initial scroll to bottom to capture recent messages...');
@@ -639,7 +655,7 @@
 
       await collectAndSend();
 
-      if (days >= 0) {
+      if (days >= 0 || days === -1) {
         var scrollContainer = findScrollContainer(list);
         if (scrollContainer) {
           var obs = new MutationObserver(function () { collectAndSend(); });
@@ -650,7 +666,7 @@
           var waitTime = 2500;
           
           while (true) {
-            if (stopRequested) break;
+            if (stopRequested || incrementalDone) break;
             
             // --- SAFE INCREMENTAL SCROLL (CRAWL UP) ---
             // Instead of jumping to 0, we crawl up to ensure virtualized nodes render and trigger observer
@@ -658,7 +674,7 @@
             var safetyTimeout = 2000;
             
             while (scrollContainer.scrollTop > 0) {
-              if (stopRequested) break;
+              if (stopRequested || incrementalDone) break;
               var targetScroll = Math.max(0, scrollContainer.scrollTop - stepSize);
               debugLog('Crawling up to:', targetScroll);
               
@@ -695,6 +711,7 @@
             });
 
             if (cutoffDate && currentOldest && currentOldest <= cutoffDate) break;
+            if (incrementalDone) break;
 
             var changed = !prevOldest || !currentOldest || currentOldest.getTime() !== prevOldest.getTime();
             if (!changed && !forceResumeRequested) {
@@ -747,7 +764,7 @@
       }
 
       // Complete only if we weren't stopped/aborted
-      if (!stopRequested) {
+      if (!stopRequested || incrementalDone) {
         sendToBackground('FINISH_EXTRACTION', { sort: sort });
       } else {
         debugLog('Extraction stopped by user signal, background will handle transition.');

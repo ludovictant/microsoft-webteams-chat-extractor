@@ -15,6 +15,14 @@ The background script SHALL completely purge all stored message data, assets, an
 - **WHEN** a `START_EXTRACTION` message is received
 - **THEN** the background script SHALL clear all internal maps and arrays before initializing the new session.
 
+### Requirement: Incremental Extraction Support
+The system SHALL support an incremental extraction mode that stops as soon as it encounters a message that has already been captured in a previous session.
+
+#### Scenario: Incremental extraction start
+- **WHEN** a `START_EXTRACTION` message is received with `days: -1`
+- **THEN** the system SHALL enter incremental mode.
+- **AND** the extraction loop SHALL terminate as soon as it encounters a message ID that already exists in the local database.
+
 ### Requirement: Interactive Stuck State Handling
 The system SHALL detect when programmatic scrolling fails to load new messages and transition to a "stuck" state that requires user intervention.
 
