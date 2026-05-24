@@ -60,21 +60,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	var clearStorageBtn = document.getElementById('clearStorageBtn');
 	var historyBody = document.getElementById('historyBody');
-	var collapsible = document.querySelector('.collapsible');
-
-	// Handle collapsible
-	if (collapsible) {
-		collapsible.addEventListener('click', function() {
-			this.classList.toggle('active');
-			var content = this.nextElementSibling;
-			if (content.style.maxHeight) {
-				content.style.maxHeight = null;
-			} else {
-				content.style.maxHeight = '500px'; // Set a large enough fixed height to allow internal scrolling if needed
-				refreshHistoryList();
-			}
-		});
-	}
 
 	function formatDate(ts) {
 		if (!ts) return 'N/A';
@@ -128,9 +113,9 @@ document.addEventListener('DOMContentLoaded', function () {
 						historyBody.appendChild(tr);
 					});
 				}
-				// Adjust height if active to accommodate new content
-				if (collapsible && collapsible.classList.contains('active')) {
-					collapsible.nextElementSibling.style.maxHeight = collapsible.nextElementSibling.scrollHeight + 'px';
+				// Adjust height if visible to accommodate new content
+				if (localStorageToggle && localStorageToggle.checked && localStorageContent) {
+					localStorageContent.style.maxHeight = localStorageContent.scrollHeight + 'px';
 				}
 			}
 		});
@@ -176,10 +161,25 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
-	// Load local storage preference
+	var localStorageHeader = document.getElementById('localStorageHeader');
+	var localStorageContent = document.getElementById('localStorageContent');
+
+	function updateLocalStorageVisibility() {
+		if (!localStorageToggle || !localStorageContent) return;
+		var isEnabled = localStorageToggle.checked;
+		if (isEnabled) {
+			localStorageContent.style.maxHeight = '500px';
+			refreshHistoryList();
+		} else {
+			localStorageContent.style.maxHeight = null;
+		}
+	}
+
+	// Initial load local storage preference
 	chrome.storage.local.get({ localStorageEnabled: true }, function(result) {
 		if (localStorageToggle) {
 			localStorageToggle.checked = !!result.localStorageEnabled;
+			updateLocalStorageVisibility();
 		}
 	});
 
@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			var isEnabled = localStorageToggle.checked;
 			chrome.storage.local.set({ localStorageEnabled: isEnabled }, function() {
 				debugLog('Local storage preference set to:', isEnabled);
+				updateLocalStorageVisibility();
 			});
 		});
 	}
@@ -223,18 +224,11 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			isProcessingRequest = false;   // Reset request lock
 			
-			// ONLY reset collapsible if we are COMING FROM a different state
-			// This prevents the section from auto-collapsing every second due to polling
-			if (currentStatus !== 'idle' && collapsible && collapsible.classList.contains('active')) {
-				collapsible.classList.remove('active');
-				collapsible.nextElementSibling.style.maxHeight = null;
-			}
-			
 			currentStatus = 'idle';
 
 			// Re-enable trigger buttons only if no other tab is busy
 			optionsDiv.querySelectorAll('button').forEach(function(b) { 
-				if (!b.classList.contains('collapsible')) b.disabled = isAnotherTabBusy; 
+				b.disabled = isAnotherTabBusy; 
 			});
 
 			if (statusNudge) {
@@ -423,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	// Handle time-range button clicks
 	optionsDiv.addEventListener('click', async function (e) {
 		var btn = e.target.closest('button');
-		if (!btn || btn.classList.contains('collapsible')) return;
+		if (!btn) return;
 
 		// Prevent concurrent requests
 		if (isProcessingRequest) {
@@ -442,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			// Disable all trigger buttons immediately
 			var allBtns = optionsDiv.querySelectorAll('button');
 			allBtns.forEach(function(b) { 
-				if (!b.classList.contains('collapsible')) b.disabled = true; 
+				b.disabled = true; 
 			});
 
 			var days = parseInt(btn.dataset.days, 10);
@@ -453,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (!tab) {
 				isProcessingRequest = false;
 				allBtns.forEach(function(b) { 
-					if (!b.classList.contains('collapsible')) b.disabled = false; 
+					b.disabled = false; 
 				});
 				return;
 			}
@@ -486,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				console.error('Extraction error:', err);
 				isProcessingRequest = false;
 				allBtns.forEach(function(b) { 
-					if (!b.classList.contains('collapsible')) b.disabled = false; 
+					b.disabled = false; 
 				});
 			}
 		});

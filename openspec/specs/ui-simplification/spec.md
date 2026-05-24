@@ -9,7 +9,7 @@ The system SHALL exclusively produce message exports in chronological order (Old
 - **THEN** the messages in the resulting ZIP archive SHALL be sorted from oldest to newest.
 
 ### Requirement: Unified Extraction Interface
-The system SHALL provide a simplified extraction interface by removing redundant labels and standardizing trigger options. Additionally, the operational disclaimer SHALL be positioned at the top of the interface for maximum visibility. The interface SHALL also include a toggle for enabling local database storage and a dashboard showing local history with real-time statistics.
+The system SHALL provide a simplified extraction interface by removing redundant labels and standardizing trigger options. Additionally, the operational disclaimer SHALL be positioned at the top of the interface for maximum visibility. The interface SHALL also include a merged block for local database storage and history, where the history dashboard visibility is tied to the toggle state.
 
 #### Scenario: Simplified extraction triggers
 - **WHEN** the extension side panel is opened
@@ -20,10 +20,19 @@ The system SHALL provide a simplified extraction interface by removing redundant
 - **AND** the Debug Mode switch SHALL be positioned below the disclaimer and above the extraction trigger buttons.
 - **AND** the header title SHALL be "MS Teams Chat Extractor".
 
-#### Scenario: Local storage toggle
+#### Scenario: Local storage toggle and history visibility
 - **WHEN** the side panel is opened for the FIRST time
 - **THEN** the "Local storage" toggle SHALL be enabled by default.
+- **AND** the history dashboard SHALL be visible (expanded) because the toggle is "On".
 - **AND** its state SHALL be persisted across sessions.
+
+#### Scenario: Toggling local storage "Off"
+- **WHEN** the user switches the "Local storage" toggle to "Off"
+- **THEN** the history dashboard (conversation list) SHALL automatically collapse.
+
+#### Scenario: Toggling local storage "On"
+- **WHEN** the user switches the "Local storage" toggle to "On"
+- **THEN** the history dashboard (conversation list) SHALL automatically expand.
 
 #### Scenario: Real-time history dashboard
 - **WHEN** the "Local storage" section is expanded
