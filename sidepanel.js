@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	
 	var clearStorageBtn = document.getElementById('clearStorageBtn');
 	
+	// Initial refresh
+	refreshHistoryList();
+	
 	var activeTabId = null;
 	var pollingInterval = null;
 
@@ -55,6 +58,84 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
+	var clearStorageBtn = document.getElementById('clearStorageBtn');
+	var historyBody = document.getElementById('historyBody');
+	var collapsible = document.querySelector('.collapsible');
+
+	// Handle collapsible
+	if (collapsible) {
+		collapsible.addEventListener('click', function() {
+			this.classList.toggle('active');
+			var content = this.nextElementSibling;
+			if (content.style.maxHeight) {
+				content.style.maxHeight = null;
+			} else {
+				content.style.maxHeight = '500px'; // Set a large enough fixed height to allow internal scrolling if needed
+				refreshHistoryList();
+			}
+		});
+	}
+
+	function formatDate(ts) {
+		if (!ts) return 'N/A';
+		var d = new Date(ts);
+		var pad = (n) => n.toString().padStart(2, '0');
+		return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+	}
+
+	function formatDateTime(ts) {
+		if (!ts) return 'N/A';
+		var d = new Date(ts);
+		var pad = (n) => n.toString().padStart(2, '0');
+		return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+	}
+
+	function refreshHistoryList() {
+		if (!historyBody) return;
+		chrome.runtime.sendMessage({ action: 'GET_LOCAL_CONVERSATIONS' }, function(response) {
+			if (response && response.success) {
+				var convs = response.conversations || [];
+				if (convs.length === 0) {
+					historyBody.innerHTML = '<tr><td colspan="4" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td></tr>';
+				} else {
+					historyBody.innerHTML = '';
+					convs.sort((a, b) => (b.lastCrawlTimestamp || 0) - (a.lastCrawlTimestamp || 0));
+					convs.forEach(function(conv) {
+						var tr = document.createElement('tr');
+						
+						var nameCell = document.createElement('td');
+						nameCell.className = 'history-name-cell';
+						nameCell.textContent = conv.name || 'Unknown Chat';
+						nameCell.title = conv.name || 'Unknown Chat';
+						tr.appendChild(nameCell);
+
+						var countCell = document.createElement('td');
+						countCell.style.textAlign = 'center';
+						countCell.textContent = conv.messageCount || 0;
+						tr.appendChild(countCell);
+
+						var rangeCell = document.createElement('td');
+						rangeCell.style.textAlign = 'center';
+						rangeCell.style.fontSize = '9px';
+						rangeCell.textContent = '[' + formatDate(conv.oldestMessageTimestamp) + ' - ' + formatDate(conv.newestMessageTimestamp) + ']';
+						tr.appendChild(rangeCell);
+
+						var dateCell = document.createElement('td');
+						dateCell.className = 'history-meta-cell';
+						dateCell.textContent = formatDateTime(conv.lastCrawlTimestamp);
+						tr.appendChild(dateCell);
+
+						historyBody.appendChild(tr);
+					});
+				}
+				// Adjust height if active to accommodate new content
+				if (collapsible && collapsible.classList.contains('active')) {
+					collapsible.nextElementSibling.style.maxHeight = collapsible.nextElementSibling.scrollHeight + 'px';
+				}
+			}
+		});
+	}
+
 	// Handle clear storage button
 	if (clearStorageBtn) {
 		clearStorageBtn.addEventListener('click', function() {
@@ -62,6 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				chrome.runtime.sendMessage({ action: 'CLEAR_LOCAL_STORAGE' }, function(response) {
 					if (response && response.success) {
 						showToast('Local storage deleted!');
+						refreshHistoryList();
 					} else {
 						alert('Failed to delete storage: ' + (response ? response.error : 'Unknown error'));
 					}
@@ -72,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	var isProcessingRequest = false;
 	var currentDebugMode = false;
+	var currentStatus = 'unknown';
 	var resumeMessageTimeout = null;
 
 	function debugLog(...args) {
@@ -94,9 +177,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	});
 
 	// Load local storage preference
-	chrome.storage.local.get(['localStorageEnabled'], function(result) {
+	chrome.storage.local.get({ localStorageEnabled: true }, function(result) {
 		if (localStorageToggle) {
-			// Default to false if not set
 			localStorageToggle.checked = !!result.localStorageEnabled;
 		}
 	});
@@ -131,11 +213,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	function updateUI(data) {
 		debugLog('Updating UI with state:', data.status, data);
 
-		// Multi-tab concurrency check: is the active extraction in a DIFFERENT tab?
-		// 1. data.status !== 'idle': Something is happening in the background
-		// 2. activeTabId !== null: This side panel successfully identified its current tab
-		// 3. data.activeTabId !== null: The background has a recorded tab for the current task
-		// 4. activeTabId !== data.activeTabId: The IDs don't match -> current tab is NOT the owner
+		// Multi-tab concurrency check
 		var isAnotherTabBusy = data.status !== 'idle' && activeTabId !== null && data.activeTabId !== null && activeTabId !== data.activeTabId;
 
 		if (data.status === 'idle') {
@@ -145,9 +223,18 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalActionsDiv.style.display = 'none';
 			isProcessingRequest = false;   // Reset request lock
 			
+			// ONLY reset collapsible if we are COMING FROM a different state
+			// This prevents the section from auto-collapsing every second due to polling
+			if (currentStatus !== 'idle' && collapsible && collapsible.classList.contains('active')) {
+				collapsible.classList.remove('active');
+				collapsible.nextElementSibling.style.maxHeight = null;
+			}
+			
+			currentStatus = 'idle';
+
 			// Re-enable trigger buttons only if no other tab is busy
 			optionsDiv.querySelectorAll('button').forEach(function(b) { 
-				b.disabled = isAnotherTabBusy; 
+				if (!b.classList.contains('collapsible')) b.disabled = isAnotherTabBusy; 
 			});
 
 			if (statusNudge) {
@@ -165,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				downloadZipBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Archive (ZIP)';
 			}
 		} else if (data.status === 'extracting') {
+			currentStatus = 'extracting';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
@@ -173,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
-			progressText.textContent = data.count + ' messages collected so far\u2026';
+			progressText.textContent = data.count + ' new messages collected so far\u2026';
 
 			// Show retry status if waiting
 			if (retryStatus) {
@@ -223,6 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				}
 			}
 		} else if (data.status === 'stuck') {
+			currentStatus = 'stuck';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
 			finalActionsDiv.style.display = 'none';
@@ -231,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'block';
 			
 			if (activeChatName) activeChatName.textContent = data.title || 'Teams Chat';
-			progressText.textContent = data.count + ' messages collected so far\u2026';
+			progressText.textContent = data.count + ' new messages collected so far\u2026';
 
 			if (retryStatus) {
 				retryStatus.innerHTML = '<div style="margin-bottom: 4px;"><strong style="color: #f9a825;">(!) Stalled:</strong> The top of the chat may have been reached.</div>' +
@@ -249,6 +338,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			progressBarContainer.style.display = 'block';
 			progressBar.classList.add('indeterminate');
 		} else if (data.status === 'processing') {
+			currentStatus = 'processing';
 			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
@@ -271,6 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				progressBar.style.width = '100%';
 			}
 		} else if (data.status === 'ready') {
+			currentStatus = 'ready';
 			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'none';
@@ -278,6 +369,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			finalMsg.textContent = 'Archive ready: ' + data.count + ' messages and ' + data.totalAssets + ' images.';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'none';
 		} else if (data.status === 'error') {
+			currentStatus = 'error';
 			if (retryStatus) retryStatus.style.display = 'none';
 			optionsDiv.style.display = 'none';
 			statusDiv.style.display = 'block';
@@ -331,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	// Handle time-range button clicks
 	optionsDiv.addEventListener('click', async function (e) {
 		var btn = e.target.closest('button');
-		if (!btn) return;
+		if (!btn || btn.classList.contains('collapsible')) return;
 
 		// Prevent concurrent requests
 		if (isProcessingRequest) {
@@ -349,7 +441,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			
 			// Disable all trigger buttons immediately
 			var allBtns = optionsDiv.querySelectorAll('button');
-			allBtns.forEach(function(b) { b.disabled = true; });
+			allBtns.forEach(function(b) { 
+				if (!b.classList.contains('collapsible')) b.disabled = true; 
+			});
 
 			var days = parseInt(btn.dataset.days, 10);
 			var sort = 'oldest';
@@ -358,7 +452,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			var tab = tabs[0];
 			if (!tab) {
 				isProcessingRequest = false;
-				allBtns.forEach(function(b) { b.disabled = false; });
+				allBtns.forEach(function(b) { 
+					if (!b.classList.contains('collapsible')) b.disabled = false; 
+				});
 				return;
 			}
 			activeTabId = tab.id;
@@ -373,7 +469,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				
 				// Get current debug mode and local storage preference from storage
 				chrome.storage.session.get(['debugMode'], function(sessionResult) {
-					chrome.storage.local.get(['localStorageEnabled'], async function(localResult) {
+					chrome.storage.local.get({ localStorageEnabled: true }, async function(localResult) {
 						var debugMode = !!sessionResult.debugMode;
 						var localStorageEnabled = !!localResult.localStorageEnabled;
 						
@@ -389,7 +485,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			} catch (err) {
 				console.error('Extraction error:', err);
 				isProcessingRequest = false;
-				allBtns.forEach(function(b) { b.disabled = false; });
+				allBtns.forEach(function(b) { 
+					if (!b.classList.contains('collapsible')) b.disabled = false; 
+				});
 			}
 		});
 	});

@@ -9,6 +9,7 @@
   var currentDebugMode = false;
   var connectedUserName = null;
   var connectedUserAvatarUrl = null;
+  var globalLocalStorageEnabled = false;
 
   function debugLog(...args) {
     if (currentDebugMode) console.log('[DEBUG]', ...args);
@@ -17,8 +18,15 @@
   // Send a message to the background script
   function sendToBackground(action, data) {
     debugLog('Content Script sending to background:', action, data);
-    chrome.runtime.sendMessage({ action: action, ...data }).catch(function (err) {
-      console.warn('Content Script failed to send message:', action, err);
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: action, ...data }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('Content Script failed to send message:', action, chrome.runtime.lastError.message);
+          resolve(null);
+        } else {
+          resolve(response);
+        }
+      });
     });
   }
 
@@ -159,9 +167,18 @@
 
   // Fetch an image and send it to the background
   var fetchedAssets = new Set();
-  async function fetchAndSendAsset(url) {
+  async function fetchAndSendAsset(url, localStorageEnabled) {
     if (!url || fetchedAssets.has(url) || url.startsWith('data:')) return;
     fetchedAssets.add(url);
+
+    // If local storage is enabled, check if background already has this asset
+    if (localStorageEnabled) {
+      const response = await sendToBackground('CHECK_ASSET', { url: url });
+      if (response && response.stored) {
+        debugLog('Background already has asset, skipping fetch:', url);
+        return;
+      }
+    }
 
     // Detect if the URL belongs to a Teams/Microsoft internal domain
     var isInternal = url.indexOf('teams.microsoft.com') !== -1 || url.indexOf('microsoft.com') !== -1;
@@ -244,7 +261,7 @@
       avatarUrl = connectedUserAvatarUrl;
     }
 
-    if (avatarUrl) fetchAndSendAsset(avatarUrl);
+    if (avatarUrl) fetchAndSendAsset(avatarUrl, globalLocalStorageEnabled);
 
     var ts = getTimestamp(node);
     var timestamp = ts ? ts.getTime() : 0;
@@ -348,7 +365,7 @@
         debugLog('Image ' + i + ': Assigning placeholder ##' + imgId + '##');
         img.src = '##' + imgId + '##'; 
         
-        fetchAndSendAsset(targetUrl);
+        fetchAndSendAsset(targetUrl, globalLocalStorageEnabled);
       }
     }
 
@@ -516,6 +533,7 @@
   async function scrollAndExtract(days, sort, localStorageEnabled) {
     stopRequested = false;
     forceResumeRequested = false;
+    globalLocalStorageEnabled = !!localStorageEnabled;
     fetchedAssets.clear();
     startHeartbeat();
     
@@ -559,7 +577,7 @@
         if (meImg && meImg.src) {
           connectedUserAvatarUrl = meImg.src;
           // Pre-fetch immediately so it's available for the ZIP even if matching takes time
-          fetchAndSendAsset(connectedUserAvatarUrl);
+          fetchAndSendAsset(connectedUserAvatarUrl, globalLocalStorageEnabled);
         }
         debugLog('Extracted connected user info:', { connectedUserName, connectedUserAvatarUrl, ariaLabel });
       }

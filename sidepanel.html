@@ -60,7 +60,7 @@
 			margin-bottom: 16px;
 		}
 
-		#options button {
+		#options .btn-group button {
 			display: block;
 			width: 100%;
 			padding: 12px 14px;
@@ -76,11 +76,11 @@
 			transition: background 0.15s, transform 0.15s;
 		}
 
-		#options button:hover {
+		#options .btn-group button:hover {
 			background: #4caf50;
 		}
 
-		#options button:active {
+		#options .btn-group button:active {
 			transform: scale(0.98);
 		}
 
@@ -358,6 +358,93 @@
 			transform: translateX(12px);
 		}
 
+		/* ---- Collapsible History ---- */
+		.collapsible {
+			background-color: #2b2b3d;
+			color: #e0e0e0;
+			cursor: pointer;
+			padding: 10px 14px;
+			width: 100%;
+			border: 1px solid #3a3a52;
+			border-radius: 8px;
+			text-align: left;
+			outline: none;
+			font-size: 13px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 12px;
+		}
+
+		.active, .collapsible:hover {
+			background-color: #3a3a52;
+		}
+
+		.content {
+			padding: 0 10px;
+			max-height: 0;
+			overflow: hidden;
+			transition: max-height 0.2s ease-out;
+			background-color: #1e1e2e;
+			border-radius: 0 0 8px 8px;
+		}
+
+		#historyTable {
+			width: 100%;
+			border-collapse: collapse;
+			margin: 10px 0;
+			font-size: 10px;
+			color: #e0e0e0;
+			table-layout: fixed;
+		}
+
+		#historyTable th {
+			text-align: left;
+			color: #8888a8;
+			font-weight: 600;
+			padding-bottom: 6px;
+			border-bottom: 1px solid #3a3a52;
+			text-transform: uppercase;
+			font-size: 9px;
+			letter-spacing: 0.5px;
+		}
+
+		#historyTable td {
+			padding: 8px 0;
+			border-bottom: 1px solid #2b2b3d;
+			vertical-align: top;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		#historyTable tr:last-child td {
+			border-bottom: none;
+		}
+
+		.history-name-cell {
+			font-weight: 600;
+			color: #6264a7;
+		}
+
+		.history-meta-cell {
+			color: #8888a8;
+			text-align: right;
+		}
+
+		/* ---- Chevron Icon ---- */
+		.chevron {
+			width: 12px;
+			height: 12px;
+			margin-right: 8px;
+			transition: transform 0.2s;
+			flex-shrink: 0;
+		}
+
+		.active .chevron {
+			transform: rotate(90deg);
+		}
+
 		/* ---- Info Icon & Tooltip ---- */
 		.info-icon {
 			display: inline-flex;
@@ -480,8 +567,9 @@
 			<button data-days="0">Download all messages</button>
 		</div>
 
-		<div style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px; margin-top: 16px;">
+		<div class="collapsible" style="display: flex; align-items: center; justify-content: space-between; background: #2b2b3d; padding: 10px 14px; border: 1px solid #3a3a52; border-radius: 8px; margin-top: 16px; cursor: pointer;">
 			<span style="font-size: 13px; color: #e0e0e0; display: flex; align-items: center;">
+				<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 				Local storage
 				<span class="info-icon">
 					i
@@ -493,10 +581,27 @@
 					</span>
 				</span>
 			</span>
-			<label class="switch">
-				<input type="checkbox" id="localStorageToggle">
+			<label class="switch" onclick="event.stopPropagation();">
+				<input type="checkbox" id="localStorageToggle" checked>
 				<span class="slider"></span>
 			</label>
+		</div>
+		<div class="content">
+			<table id="historyTable">
+				<thead>
+					<tr>
+						<th style="width: 25%;">Conversation</th>
+						<th style="width: 10%; text-align: center;">Qty</th>
+						<th style="width: 35%; text-align: center;">Message Range</th>
+						<th style="width: 30%; text-align: right;">Last crawl</th>
+					</tr>
+				</thead>
+				<tbody id="historyBody">
+					<tr>
+						<td colspan="4" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td>
+					</tr>
+				</tbody>
+			</table>
 		</div>
 	</div>
 

@@ -104,7 +104,7 @@ debugLog('Background script: Initializing...');
 let extractionData = {
   title: '',
   teamsId: null,
-  localStorageEnabled: false,
+  localStorageEnabled: true,
   days: 0,
   startTime: null,
   activeTabId: null,
@@ -157,7 +157,7 @@ function base64ToBlob(base64, type) {
 class TeamsExtractorDB {
   constructor() {
     this.dbName = 'TeamsExtractorDB';
-    this.version = 1;
+    this.version = 2;
     this.db = null;
   }
 
@@ -191,6 +191,12 @@ class TeamsExtractorDB {
           const messageStore = db.createObjectStore('messages', { keyPath: 'id' });
           messageStore.createIndex('conversationId', 'conversationId', { unique: false });
           messageStore.createIndex('timestamp', 'timestamp', { unique: false });
+          messageStore.createIndex('conv_ts_index', ['conversationId', 'timestamp'], { unique: false });
+        } else {
+          const messageStore = event.currentTarget.transaction.objectStore('messages');
+          if (!messageStore.indexNames.contains('conv_ts_index')) {
+            messageStore.createIndex('conv_ts_index', ['conversationId', 'timestamp'], { unique: false });
+          }
         }
 
         // Assets store
@@ -212,20 +218,9 @@ class TeamsExtractorDB {
       getRequest.onsuccess = () => {
         const existing = getRequest.result || {};
 
-        // Merge timestamps: take overall min for oldest, overall max for newest
-        const oldest = (existing.oldestMessageTimestamp && convData.oldestMessageTimestamp) 
-          ? Math.min(existing.oldestMessageTimestamp, convData.oldestMessageTimestamp)
-          : (existing.oldestMessageTimestamp || convData.oldestMessageTimestamp);
-
-        const newest = (existing.newestMessageTimestamp && convData.newestMessageTimestamp)
-          ? Math.max(existing.newestMessageTimestamp, convData.newestMessageTimestamp)
-          : (existing.newestMessageTimestamp || convData.newestMessageTimestamp);
-
         const updated = {
           ...existing,
           ...convData,
-          oldestMessageTimestamp: oldest,
-          newestMessageTimestamp: newest,
           lastCrawlTimestamp: Date.now()
         };
 
@@ -263,6 +258,28 @@ class TeamsExtractorDB {
     });
   }
 
+  async getAsset(url) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['assets'], 'readonly');
+      const store = transaction.objectStore('assets');
+      const request = store.get(url);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async isAssetStored(url) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['assets'], 'readonly');
+      const store = transaction.objectStore('assets');
+      const request = store.count(url);
+      request.onsuccess = () => resolve(request.result > 0);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
   async clearAll() {
     const db = await this.open();
     return new Promise((resolve, reject) => {
@@ -275,6 +292,61 @@ class TeamsExtractorDB {
         debugLog('IndexedDB cleared successfully');
         resolve();
       };
+      transaction.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async getAllConversations() {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['conversations'], 'readonly');
+      const store = transaction.objectStore('conversations');
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async getConversationStats(teamsId) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['messages'], 'readonly');
+      const store = transaction.objectStore('messages');
+      const index = store.index('conv_ts_index');
+      
+      const stats = {
+        messageCount: 0,
+        oldestMessageTimestamp: null,
+        newestMessageTimestamp: null
+      };
+
+      // 1. Get Count
+      const countRequest = index.count(IDBKeyRange.bound([teamsId, 0], [teamsId, Infinity]));
+      countRequest.onsuccess = () => {
+        stats.messageCount = countRequest.result;
+        
+        // 2. Get Oldest (first entry in range)
+        const oldestRequest = index.openCursor(IDBKeyRange.bound([teamsId, 0], [teamsId, Infinity]), 'next');
+        oldestRequest.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            stats.oldestMessageTimestamp = cursor.value.timestamp;
+            
+            // 3. Get Newest (last entry in range)
+            const newestRequest = index.openCursor(IDBKeyRange.bound([teamsId, 0], [teamsId, Infinity]), 'prev');
+            newestRequest.onsuccess = (e2) => {
+              const cursor2 = e2.target.result;
+              if (cursor2) {
+                stats.newestMessageTimestamp = cursor2.value.timestamp;
+              }
+              resolve(stats);
+            };
+          } else {
+            resolve(stats);
+          }
+        };
+      };
+      
       transaction.onerror = (e) => reject(e.target.error);
     });
   }
@@ -522,7 +594,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       extractionData = {
         title: '',
         teamsId: null,
-        localStorageEnabled: false,
+        localStorageEnabled: true,
         days: 0,
         startTime: null,
         activeTabId: null,
@@ -554,14 +626,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const finalAvatarUrl = msg.avatarUrl || (msg.author ? extractionData.authorToAvatarUrl.get(msg.author) : null);
         if (finalAvatarUrl && !extractionData.seenAssetUrls.has(finalAvatarUrl)) {
           extractionData.seenAssetUrls.add(finalAvatarUrl);
-          extractionData.totalAssets++;
+          if (!extractionData.urlToBlob.has(finalAvatarUrl)) {
+            extractionData.totalAssets++;
+          }
         }
         if (msg.images) {
           msg.images.forEach((img, idx) => {
             img.localFilename = `msg_${formatFileTS(msg.timestamp)}_${sanitizeFileName(msg.id)}_${idx}.png`;
             if (!extractionData.seenAssetUrls.has(img.url)) {
               extractionData.seenAssetUrls.add(img.url);
-              extractionData.totalAssets++;
+              if (!extractionData.urlToBlob.has(img.url)) {
+                extractionData.totalAssets++;
+              }
             }
           });
         }
@@ -569,17 +645,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       extractionData.count = extractionData.messages.length;
 
       if (extractionData.localStorageEnabled && currentTeamsId) {
-        let newestInChunk = 0, oldestInChunk = Infinity;
-        message.messages.forEach(m => {
-          if (m.timestamp > newestInChunk) newestInChunk = m.timestamp;
-          if (m.timestamp < oldestInChunk) oldestInChunk = m.timestamp;
-        });
         db.upsertConversation({
           teamsId: currentTeamsId,
-          name: extractionData.title,
-          messageCount: extractionData.count,
-          oldestMessageTimestamp: oldestInChunk === Infinity ? null : oldestInChunk,
-          newestMessageTimestamp: newestInChunk === 0 ? null : newestInChunk
+          name: extractionData.title
         }).catch(e => console.error(e));
         db.saveMessages(message.messages).catch(e => console.error(e));
       }
@@ -675,6 +743,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       checkVersion(true).then(result => sendResponse(result));
       return true;
 
+    case 'CHECK_ASSET':
+      if (extractionData.localStorageEnabled) {
+        db.getAsset(message.url).then(asset => {
+          if (asset && asset.content) {
+            debugLog('Asset found in IndexedDB, skipping download:', message.url);
+            if (!extractionData.urlToBlob.has(message.url)) {
+              extractionData.urlToBlob.set(message.url, asset.content);
+              extractionData.seenAssetUrls.add(message.url);
+              extractionData.totalAssets++;
+              extractionData.processedAssets++;
+              broadcastStatus();
+            }
+            sendResponse({ stored: true });
+          } else {
+            sendResponse({ stored: false });
+          }
+        }).catch(err => {
+          console.error('Failed to check asset in DB:', err);
+          sendResponse({ stored: false });
+        });
+      } else {
+        sendResponse({ stored: false });
+      }
+      return true;
+
     case 'ERROR':
       extractionData.status = 'error';
       extractionData.error = message.error;
@@ -686,6 +779,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true });
       }).catch(err => {
         console.error('Failed to clear DB:', err);
+        sendResponse({ success: false, error: err.message });
+      });
+      return true;
+
+    case 'GET_LOCAL_CONVERSATIONS':
+      db.getAllConversations().then(async (convs) => {
+        const enriched = await Promise.all(convs.map(async (c) => {
+          try {
+            const stats = await db.getConversationStats(c.teamsId);
+            return { ...c, ...stats };
+          } catch (e) {
+            console.error('Failed to get stats for', c.teamsId, e);
+            return c;
+          }
+        }));
+        sendResponse({ success: true, conversations: enriched });
+      }).catch(err => {
+        console.error('Failed to fetch conversations:', err);
         sendResponse({ success: false, error: err.message });
       });
       return true;
