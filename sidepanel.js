@@ -112,9 +112,7 @@ document.addEventListener('DOMContentLoaded', function () {
 					});
 				}
 				// Adjust height if visible to accommodate new content
-				if (localStorageToggle && localStorageToggle.checked && localStorageContent) {
-					localStorageContent.style.maxHeight = localStorageContent.scrollHeight + 'px';
-				}
+				// (Removed dynamic maxHeight adjustment to allow CSS scrollbar to work properly)
 			}
 		});
 	}
@@ -172,10 +170,10 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 
 		if (isEnabled) {
-			localStorageContent.style.maxHeight = '500px';
+			localStorageContent.style.display = 'block';
 			refreshHistoryList();
 		} else {
-			localStorageContent.style.maxHeight = null;
+			localStorageContent.style.display = 'none';
 		}
 	}
 
