@@ -591,6 +591,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         processedAssets: 0,
         totalAssets: 0
       };
+
+      if (extractionData.localStorageEnabled && extractionData.teamsId) {
+        db.upsertConversation({
+          teamsId: extractionData.teamsId,
+          name: extractionData.title
+        }).then(() => {
+          broadcastStatus();
+        }).catch(e => console.error('Early name sync failed:', e));
+      }
+
       broadcastStatus();
       sendResponse({ status: 'started' });
       break;

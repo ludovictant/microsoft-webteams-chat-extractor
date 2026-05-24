@@ -16,7 +16,12 @@ The extension SHALL maintain a local database named `TeamsExtractorDB` with the 
 - **AND** it SHALL ensure the compound index `conv_ts_index` exists on the `messages` store.
 
 ### Requirement: Real-time Message Persistence
-The system SHALL persist messages to the local database in real-time as they are extracted from the Teams interface.
+The system SHALL persist messages and conversation metadata to the local database in real-time. Conversation metadata, specifically the title, SHALL be updated at the very start of an extraction session to ensure synchronization even if zero new messages are collected.
+
+#### Scenario: Immediate metadata synchronization
+- **WHEN** a `START_EXTRACTION` message is received
+- **AND** Local Storage is enabled
+- **THEN** the system SHALL immediately update the `conversations` object store with the latest `teamsId` and `name`.
 
 #### Scenario: Message saving
 - **WHEN** a message is successfully extracted from the DOM
