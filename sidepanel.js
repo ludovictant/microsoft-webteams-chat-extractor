@@ -21,9 +21,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	var retryStatus = document.getElementById('retryStatus');
 	var localStorageToggle = document.getElementById('localStorageToggle');
 	var incrementalBtn = document.getElementById('incrementalBtn');
-	var incrementalTooltip = document.getElementById('incrementalTooltip');
-	
 	var clearStorageBtn = document.getElementById('clearStorageBtn');
+	var historyBody = document.getElementById('historyBody');
 	
 	// Initial refresh
 	refreshHistoryList();
@@ -59,9 +58,6 @@ document.addEventListener('DOMContentLoaded', function () {
 			updateUI(message.data);
 		}
 	});
-
-	var clearStorageBtn = document.getElementById('clearStorageBtn');
-	var historyBody = document.getElementById('historyBody');
 
 	function formatDate(ts) {
 		if (!ts) return 'N/A';
@@ -170,17 +166,9 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (!localStorageToggle || !localStorageContent) return;
 		var isEnabled = localStorageToggle.checked;
 
-		// Update incremental button state and tooltip
+		// Update incremental button state
 		if (incrementalBtn) {
 			incrementalBtn.disabled = !isEnabled;
-		}
-		if (incrementalTooltip) {
-			incrementalTooltip.classList.add('visible');
-			if (isEnabled) {
-				incrementalTooltip.textContent = 'Fetch only new messages added since the last crawl.';
-			} else {
-				incrementalTooltip.textContent = "Extract only new messages since the last crawl. Enable 'Local storage' below to use this feature.";
-			}
 		}
 
 		if (isEnabled) {
