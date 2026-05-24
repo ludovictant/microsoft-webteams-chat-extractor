@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (response && response.success) {
 				var convs = response.conversations || [];
 				if (convs.length === 0) {
-					historyBody.innerHTML = '<tr><td colspan="5" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td></tr>';
+					historyBody.innerHTML = '<tr><td colspan="6" style="padding: 10px 0; color: #8888a8; text-align: center;">No stored conversations.</td></tr>';
 				} else {
 					// Apply sorting
 					convs.sort((a, b) => {
@@ -90,7 +90,10 @@ document.addEventListener('DOMContentLoaded', function () {
 						} else if (currentSortColumn === 'count') {
 							valA = a.messageCount || 0;
 							valB = b.messageCount || 0;
-						} else { // date
+						} else if (currentSortColumn === 'date_download') {
+							valA = a.lastDownloadTimestamp || 0;
+							valB = b.lastDownloadTimestamp || 0;
+						} else { // date (crawl)
 							valA = a.lastCrawlTimestamp || 0;
 							valB = b.lastCrawlTimestamp || 0;
 						}
@@ -125,6 +128,11 @@ document.addEventListener('DOMContentLoaded', function () {
 						dateCell.className = 'history-meta-cell';
 						dateCell.textContent = formatDateTime(conv.lastCrawlTimestamp);
 						tr.appendChild(dateCell);
+
+						var downloadCell = document.createElement('td');
+						downloadCell.className = 'history-meta-cell';
+						downloadCell.textContent = conv.lastDownloadTimestamp ? formatDateTime(conv.lastDownloadTimestamp) : 'Never';
+						tr.appendChild(downloadCell);
 
 						var actionCell = document.createElement('td');
 						actionCell.style.textAlign = 'right';

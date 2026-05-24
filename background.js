@@ -247,6 +247,28 @@ class TeamsExtractorDB {
     });
   }
 
+  async updateLastDownload(teamsId) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['conversations'], 'readwrite');
+      const store = transaction.objectStore('conversations');
+      const getRequest = store.get(teamsId);
+
+      getRequest.onsuccess = () => {
+        const data = getRequest.result;
+        if (data) {
+          data.lastDownloadTimestamp = Date.now();
+          const putRequest = store.put(data);
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = (e) => reject(e.target.error);
+        } else {
+          resolve();
+        }
+      };
+      getRequest.onerror = (e) => reject(e.target.error);
+    });
+  }
+
   async saveMessages(messages) {
     const db = await this.open();
     return new Promise((resolve, reject) => {
@@ -840,9 +862,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             filename: fName,
             conflictAction: 'uniquify',
             saveAs: false
-          }, (id) => {
+          }, async (id) => {
             if (chrome.runtime.lastError) sendResponse({ error: chrome.runtime.lastError.message });
-            else sendResponse({ success: true, filename: fName });
+            else {
+              if (message.teamsId) {
+                await db.updateLastDownload(message.teamsId);
+              }
+              sendResponse({ success: true, filename: fName });
+            }
           });
         } catch (err) {
           console.error('Export failed:', err);
