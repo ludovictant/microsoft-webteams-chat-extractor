@@ -380,15 +380,16 @@
 			background-color: #3a3a52;
 		}
 
-		.content {
+		#localStorageContent {
+			height: calc(100vh - 600px);
 			padding: 0 10px;
-			max-height: 0;
-			overflow: hidden;
+			overflow: auto;
+			scrollbar-width: thin;
+			scrollbar-color: #6264a7 #1e1e2e; /* Use Teams Purple for the slider */
 			transition: max-height 0.2s ease-out;
 			background-color: #1e1e2e;
 			border-radius: 0 0 8px 8px;
 		}
-
 		#historyTable {
 			width: 100%;
 			border-collapse: collapse;
