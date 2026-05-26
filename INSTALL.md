@@ -3,7 +3,7 @@
 Since this extension is not currently in the Chrome Web Store, you must install it manually as an "unpacked" extension.
 
 ## Option 1: Using the ZIP file (Recommended)
-1. Download the `microsoft-teams-chat-extractor.zip` from the `dist/` folder in this repository.
+1. Download the [microsoft-teams-chat-extractor.zip](https://github.com/ludovictant/microsoft-webteams-chat-extractor/raw/refs/heads/main/dist/microsoft-teams-chat-extractor.zip) from the `dist/` folder in this repository.
 2. Extract the ZIP file to a folder on your computer.
 3. Open Google Chrome and go to `chrome://extensions`.
 4. Enable **Developer mode** (toggle in the top-right corner).
