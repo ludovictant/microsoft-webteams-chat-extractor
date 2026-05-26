@@ -8,11 +8,11 @@ The side panel SHALL display a one-time invitation banner (Nudge) immediately af
 - **AND** the user has not previously interacted with the nudge
 - **THEN** a banner SHALL appear asking for permission to share anonymous usage stats.
 
-### Requirement: Global Privacy Toggle
-The side panel SHALL include a persistent toggle in a "Privacy & Stats" section to allow users to enable or disable telemetry sharing at any time.
+### Requirement: Global Stats Sharing Toggle
+The side panel SHALL include a persistent toggle for "Stats sharing" to allow users to enable or disable anonymous telemetry sharing at any time.
 
 #### Scenario: Enable sharing from settings
-- **WHEN** the user switches the telemetry toggle to ON
+- **WHEN** the user switches the "Stats sharing" toggle to ON
 - **THEN** the consent state SHALL be persisted in `chrome.storage.local`.
 - **AND** a data synchronization event SHALL be triggered.
 

@@ -13,17 +13,24 @@ The system SHALL provide a simplified extraction interface by removing redundant
 
 #### Scenario: Simplified extraction triggers
 - **WHEN** the extension side panel is opened
-- **THEN** the extraction buttons SHALL be labeled: "Download recent messages", "Download last 7 days", "Download last 30 days", "Download last 3 months", and "Download all messages".
-- **AND** the "Time range" and "Settings" section labels SHALL NOT be displayed.
+- **THEN** the extraction buttons SHALL be labeled: "Download recent messages", "Download last 30 days", and "Download all messages".
 - **AND** the "Important" disclaimer SHALL be visible at the top of the layout.
 - **AND** the disclaimer SHALL include a warning against using the tool simultaneously in different tabs or windows.
-- **AND** the Debug Mode switch SHALL be positioned below the disclaimer and above the extraction trigger buttons.
+- **AND** the Debug Mode switch SHALL at the bottom, below the Conversation List
 - **AND** the header title SHALL be "MS Teams Chat Extractor".
 
 #### Scenario: Incremental extraction trigger availability
 - **WHEN** the "Local storage" toggle is "Off"
 - **THEN** the "Download recent messages" button SHALL be disabled.
 - **AND** it SHALL display a tooltip explaining that local storage must be enabled for incremental extraction.
+
+### Requirement: Clarified Telemetry Labeling
+The system SHALL use clear and specific labeling for the telemetry opt-in to ensure users understand that only anonymous usage statistics are being shared.
+
+#### Scenario: Rename privacy toggle
+- **WHEN** the side panel footer is displayed
+- **THEN** the toggle for anonymous usage statistics SHALL be labeled "Stats sharing".
+- **AND** it SHALL include an information icon with a tooltip explaining that no personal data or message content is collected.
 
 #### Scenario: Local storage toggle and history visibility
 - **WHEN** the side panel is opened for the FIRST time
