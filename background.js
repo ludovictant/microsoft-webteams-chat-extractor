@@ -251,7 +251,11 @@ let extractionData = {
 };
 
 function sanitizeFileName(name) {
-  return name.replace(/[^a-z0-9]/gi, '_');
+  // Replace spaces with underscores first.
+  const nameWithNoSpaces = name.replace(/ /g, '_');
+  // Preserve Unicode letters/numbers, dots, dashes, and underscores.
+  // Replace everything else with underscores.
+  return nameWithNoSpaces.replace(/[^\p{L}\p{N}\.\-_]/gu, '_');
 }
 
 function formatFileTS(ts) {

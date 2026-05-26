@@ -9,7 +9,7 @@ The system SHALL append a temporal suffix to the generated ZIP archive filename 
 - **AND** it SHALL append `_[startDatetime]_[endDateTime]` to the sanitized chat title.
 
 ### Requirement: Robust Chat Title Extraction
-The system SHALL attempt to extract the chat title using multiple strategies in order of preference to ensure a meaningful filename is generated.
+The system SHALL attempt to extract the chat title using multiple strategies in order of preference and sanitize it to remove illegal characters while preserving accents, dots, and dashes, and replacing spaces with underscores to ensure a robust and compatible filename is generated.
 
 #### Scenario: Extract title from active header
 - **WHEN** an extraction starts
@@ -28,6 +28,19 @@ The system SHALL attempt to extract the chat title using multiple strategies in 
 #### Scenario: Default title fallback
 - **WHEN** all extraction strategies result in an empty string
 - **THEN** the system SHALL use `teams-chat` as the default title.
+
+#### Scenario: Preserve accents in filename
+- **WHEN** a chat title contains accented characters (e.g., `é`, `à`, `ç`)
+- **THEN** the system SHALL preserve these characters in the sanitized filename.
+
+#### Scenario: Replace spaces with underscores
+- **WHEN** a chat title contains spaces
+- **THEN** the system SHALL replace each space with an underscore (`_`).
+
+#### Scenario: Strip illegal characters
+- **WHEN** a chat title contains characters that are generally illegal in filenames (e.g., `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`)
+- **THEN** the system SHALL remove these characters.
+- **AND** it SHALL preserve dots (`.`) and dashes (`-`).
 
 ### Requirement: Standardized Datetime Format
 The system SHALL use the format `YYYYmmDD.HHMMSS` for timestamps within the ZIP filename.
