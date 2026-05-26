@@ -1,11 +1,17 @@
 ## ADDED Requirements
 
 ### Requirement: Interactive Sortable Headers
-The history table in the side panel SHALL feature clickable headers for the "Conversation", "Qty", "Last crawl", and "Last Download" columns.
+The history table in the side panel SHALL feature clickable headers for the "Conversation", "Qty", "Last crawl", and "Last Download" columns. Sorting SHALL be disabled while a historical export is in progress.
 
 #### Scenario: Header visual state
 - **WHEN** a sortable header is hovered
 - **THEN** it SHALL provide visual feedback (e.g., cursor change, color shift) to indicate it is interactive.
+
+#### Scenario: Sorting disabled during export
+- **WHEN** a historical export is in progress
+- **AND** the user clicks a sortable header
+- **THEN** the system SHALL ignore the click.
+- **AND** the headers SHALL display a "not-allowed" cursor and reduced opacity.
 
 ### Requirement: Multi-Directional Sorting
 The system SHALL support sorting each of the target columns in both ascending and descending order.

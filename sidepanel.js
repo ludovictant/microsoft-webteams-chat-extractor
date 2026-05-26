@@ -160,18 +160,14 @@ document.addEventListener('DOMContentLoaded', function () {
 							if (isExportingArchive) return;
 							
 							isExportingArchive = true;
-							// Disable all buttons immediately
-							document.querySelectorAll('.history-export-btn').forEach(btn => {
-								btn.disabled = true;
-								btn.style.opacity = '0.5';
-								btn.style.cursor = 'not-allowed';
-							});
+							updateGlobalUILock();
 							
 							const originalHTML = exportBtn.innerHTML;
 							exportBtn.innerHTML = '<span class="spinner-tiny"></span>';
 							
 							chrome.runtime.sendMessage({ action: 'DOWNLOAD_ZIP', teamsId: conv.teamsId }, function(response) {
 								isExportingArchive = false;
+								updateGlobalUILock();
 								// Refresh list to restore button states or do it manually
 								refreshHistoryList();
 								
@@ -197,6 +193,9 @@ document.addEventListener('DOMContentLoaded', function () {
 				}
 				// Adjust height if visible to accommodate new content
 				// (Removed dynamic maxHeight adjustment to allow CSS scrollbar to work properly)
+				
+				// Task 2.1: Re-apply lock states to newly rendered elements
+				updateGlobalUILock();
 			}
 		});
 	}
@@ -222,6 +221,46 @@ document.addEventListener('DOMContentLoaded', function () {
 	var currentSortColumn = 'date';
 	var currentSortDirection = 'desc';
 	var currentDebugMode = false;
+
+	function updateGlobalUILock() {
+		var locked = isExportingArchive;
+		
+		// 1. Disable all trigger buttons
+		if (optionsDiv) {
+			optionsDiv.querySelectorAll('button').forEach(btn => {
+				btn.disabled = locked;
+				btn.style.opacity = locked ? '0.5' : '1';
+			});
+		}
+
+		// 2. Footer actions
+		if (checkUpdatesLink) {
+			if (locked) checkUpdatesLink.classList.add('ui-locked');
+			else checkUpdatesLink.classList.remove('ui-locked');
+		}
+		if (clearStorageBtn) {
+			clearStorageBtn.disabled = locked;
+			clearStorageBtn.style.opacity = locked ? '0.5' : '1';
+		}
+
+		// 3. Settings switches
+		if (debugToggle) debugToggle.disabled = locked;
+		if (telemetryToggle) telemetryToggle.disabled = locked;
+		if (localStorageToggle) localStorageToggle.disabled = locked;
+
+		// 4. Table interactions (headers)
+		document.querySelectorAll('#historyTable th.sortable').forEach(th => {
+			if (locked) th.classList.add('ui-locked');
+			else th.classList.remove('ui-locked');
+		});
+
+		// 5. Individual export buttons (already handled by refreshHistoryList but good to enforce)
+		document.querySelectorAll('.history-export-btn').forEach(btn => {
+			btn.disabled = locked;
+			btn.style.opacity = locked ? '0.5' : '1';
+		});
+	}
+
 	var currentStatus = 'unknown';
 	var resumeMessageTimeout = null;
 
@@ -342,6 +381,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	function handleHeaderClick(e) {
+		if (isExportingArchive) return;
 		var th = e.target.closest('th.sortable');
 		if (!th) return;
 
@@ -533,6 +573,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (stopAndExportBtn) stopAndExportBtn.textContent = 'Restart';
 			if (abortExtractionBtn) abortExtractionBtn.style.display = 'none';
 		}
+
+		// Task 2.1: Ensure global UI lock is maintained if an archive export is in progress
+		updateGlobalUILock();
 	}
 
 	function pollStatus() {
@@ -720,7 +763,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	if (checkUpdatesLink) {
 		checkUpdatesLink.addEventListener('click', function() {
-			if (checkUpdatesLink.textContent === 'Checking...') return;
+			if (isExportingArchive || checkUpdatesLink.textContent === 'Checking...') return;
 			
 			var originalText = checkUpdatesLink.textContent;
 			checkUpdatesLink.textContent = 'Checking...';
