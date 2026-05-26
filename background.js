@@ -201,9 +201,10 @@ async function syncTelemetry() {
     */
 
     // For now, simulate success
-    const ids = unsynced.map(r => r.id);
+    /*const ids = unsynced.map(r => r.id);
     await db.markTelemetrySynced(ids);
     debugLog('Telemetry sync successful (simulated)');
+    */
     
     // Also purge old data
     await db.purgeOldTelemetry(90);
